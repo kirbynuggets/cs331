@@ -26,20 +26,19 @@ fashion_collection = chroma_client.get_collection(
 )
 
 
-def query_db(query, results=3):
+def query_db(query, n_results=3):
     """Query the database for images that match the text query."""
     print(f"Querying the database for: {query}")
-    results = fashion_collection.query(
-        query_texts=[query], n_results=results, include=["uris", "distances"]
+    return fashion_collection.query(
+        query_texts=[query], n_results=n_results, include=["uris", "distances"]
     )
-    return results
 
 
-def print_results(results):
+def print_results(results_dict):
     """Print results."""
-    for idx, uri in enumerate(results["uris"][0]):
-        print(f"ID: {results['ids'][0][idx]}")
-        print(f"Distance: {results['distances'][0][idx]}")
+    for idx, uri in enumerate(results_dict["uris"][0]):
+        print(f"ID: {results_dict['ids'][0][idx]}")
+        print(f"Distance: {results_dict['distances'][0][idx]}")
         print(f"Path: {uri}")
         show_image_from_uri(uri)
         print("\n")
