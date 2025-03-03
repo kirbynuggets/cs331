@@ -13,6 +13,6 @@ CREATE TABLE clothing_items (
     baseColour VARCHAR(255),
     season VARCHAR(50),
     year INT,
-    usage VARCHAR(255),
+    `usage` VARCHAR(255),
     productDisplayName VARCHAR(255)
 );
