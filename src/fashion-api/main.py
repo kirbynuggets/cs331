@@ -14,7 +14,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 app = FastAPI()
 
 # CORS configuration
-origins = ["http://localhost:3000"]
+origins = ["http://localhost:3000"]  # Add your frontend URL here
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -24,10 +24,10 @@ app.add_middleware(
 )
 
 # Database configuration
-DATABASE_URL = "mysql+pymysql://fashion_user:securepass@localhost/fashion_db"
+DATABASE_URL = "mysql+pymysql://fashion_user:securepass@localhost/fashion_db"  # Replace with your actual credentials
 engine = create_engine(DATABASE_URL)
 
-# Serve static files
+# Serve static files (ensure your static files are in a 'static' directory)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -53,13 +53,17 @@ async def startup_event():
         ml_model.df = pd.DataFrame(items)
         ml_model.df["id"] = ml_model.df["id"].astype(str)
 
-        # Preprocess data
+        # Preprocess data (Handle missing values)
         ml_model.df["baseColour"] = ml_model.df["baseColour"].fillna("Unknown")
-
-        # Handle missing productDisplayName values
         ml_model.df["productDisplayName"] = ml_model.df["productDisplayName"].fillna(
             "Unknown"
         )
+        ml_model.df["articleType"] = ml_model.df["articleType"].fillna("Unknown")
+        ml_model.df["gender"] = ml_model.df["gender"].fillna("Unknown")
+        ml_model.df["masterCategory"] = ml_model.df["masterCategory"].fillna("Unknown")
+        ml_model.df["subCategory"] = ml_model.df["subCategory"].fillna("Unknown")
+        ml_model.df["season"] = ml_model.df["season"].fillna("Unknown")
+        ml_model.df["usage"] = ml_model.df["usage"].fillna("Unknown")
 
         # One-hot encoding
         categorical_cols = [
@@ -71,9 +75,7 @@ async def startup_event():
             "season",
             "usage",
         ]
-        onehot_encoder = OneHotEncoder(
-            handle_unknown="ignore"
-        )  # Removed `sparse` parameter
+        onehot_encoder = OneHotEncoder(handle_unknown="ignore")
         onehot_features = onehot_encoder.fit_transform(ml_model.df[categorical_cols])
 
         # TF-IDF Vectorization
@@ -103,10 +105,7 @@ class Item(BaseModel):
 
 
 class OutfitRecommendation(BaseModel):
-    topwear: List[Item]
-    bottomwear: List[Item]
-    footwear: List[Item]
-    accessories: List[Item]
+    recommendations: Dict[str, List[Item]]  # Recommendations grouped by article type
 
 
 class ProductPageResponse(BaseModel):
@@ -129,74 +128,158 @@ def get_item(item_id: str) -> Dict[str, Any]:
         return item
 
 
-def get_ml_recommendations(
-    target_idx: int, category: str, target_id: str, top_n=5
-) -> List[Dict]:
-    """Get ML-based recommendations for specific category"""
-    df = ml_model.df
-    # Filter by category and exclude current item
-    mask = (df["subCategory"] == category) & (df["id"] != target_id)
-    category_df = df[mask]
-
-    if category_df.empty:
-        return []
-
-    # Get feature vectors
-    category_indices = category_df.index.tolist()
-    category_features = ml_model.combined_features[category_indices]
-    target_features = ml_model.combined_features[target_idx]
-
-    # Calculate similarities
-    similarities = cosine_similarity(target_features, category_features).flatten()
-    top_indices = np.argsort(similarities)[-top_n:][::-1]
-
-    # Prepare results
-    results = category_df.iloc[top_indices].to_dict("records")
-    for item in results:
-        item["image_url"] = f"/static/images/{item['id']}.jpg"
-        item["id"] = int(item["id"])
-    return results
-
-
 @app.get("/api/product/{item_id}", response_model=ProductPageResponse)
 async def product_page(item_id: str):
-    # Get product details
+    """Get product details and outfit recommendations."""
     product = get_item(item_id)
     target_id = str(product["id"])
+    target_gender = product["gender"]
+    target_usage = product["usage"]
+    target_season = product["season"]
+    target_color = product["baseColour"]
 
     if target_id not in ml_model.id_to_index:
         raise HTTPException(status_code=404, detail="Item not found in ML model")
     target_idx = ml_model.id_to_index[target_id]
+    target_article_type = product["articleType"]
 
-    # Category mapping rules
-    category_mapping = {
-        "Topwear": ["Bottomwear", "Footwear", "Belts", "Watches"],
-        "Bottomwear": ["Topwear", "Footwear", "Belts"],
-        "Footwear": ["Topwear", "Bottomwear", "Socks"],
-        "Watches": ["Topwear", "Bottomwear"],
-        "Belts": ["Topwear", "Bottomwear"],
-        # Add more mappings as needed
+    # 1. Enhanced Compatibility Rules
+    compatible_types = {
+        # Tops
+        "Shirts": ["Trousers", "Jeans", "Shorts", "Blazers", "Waistcoat", "Formal Shoes", "Belts"],
+        "Tshirts": ["Jeans", "Shorts", "Track Pants", "Jackets", "Casual Shoes", "Caps"],
+        "Tops": ["Jeans", "Skirts", "Shorts", "Jackets"],
+        "Sweatshirts": ["Jeans", "Track Pants", "Caps", "Sports Shoes"],
+        "Kurtas": ["Churidar", "Trousers", "Dupatta", "Sandals"],
+        
+        # Bottoms
+        "Jeans": ["Shirts", "Tshirts", "Tops", "Casual Shoes", "Belts"],
+        "Trousers": ["Shirts", "Tshirts", "Blazers", "Formal Shoes", "Belts"],
+        "Shorts": ["Tshirts", "Casual Shoes", "Sandals"],
+        "Leggings": ["Tunics", "Kurtis", "Long Tshirts"],
+        "Skirts": ["Tops", "Shirts", "Flats", "Heels"],
+        
+        # Dresses & Suits
+        "Dresses": ["Heels", "Flats", "Jackets", "Clutches", "Jewellery Set"],
+        "Jumpsuit": ["Jackets", "Heels", "Sandals"],
+        "Lehenga Choli": ["Dupatta", "Sandals", "Jewellery Set"],
+        "Suits": ["Formal Shoes", "Shirts", "Ties"],
+        
+        # Outerwear
+        "Blazers": ["Shirts", "Trousers", "Formal Shoes", "Ties"],
+        "Jackets": ["Tshirts", "Jeans", "Casual Shoes", "Sweatshirts"],
+        
+        # Footwear
+        "Formal Shoes": ["Trousers", "Shirts", "Belts"],
+        "Casual Shoes": ["Jeans", "Tshirts", "Shorts"],
+        "Heels": ["Dresses", "Skirts", "Trousers"],
+        "Flats": ["Dresses", "Jeans", "Skirts"],
+        
+        # Ethnic
+        "Sarees": ["Sandals", "Jewellery Set", "Clutches"],
+        "Salwar": ["Kurtis", "Dupatta", "Sandals"],
     }
 
-    # Get recommendations
-    recommendations = OutfitRecommendation(
-        topwear=[], bottomwear=[], footwear=[], accessories=[]
+    # 2. Gender-Specific Additions
+    if target_gender in ["Women", "Girls"]:
+        compatible_types.update({
+            "Dresses": ["Heels", "Flats", "Jackets", "Clutches", "Sunglasses"],
+            "Tops": ["Skirts", "Shorts", "Jackets"],
+            "Kurtis": ["Leggings", "Dupatta", "Sandals"],
+        })
+    elif target_gender in ["Men", "Boys"]:
+        compatible_types.update({
+            "Shirts": ["Trousers", "Blazers", "Formal Shoes", "Ties"],
+            "Tshirts": ["Shorts", "Track Pants", "Sports Shoes"],
+        })
+
+    # 3. Get Core Recommendations
+    recommendations_dict = {}
+    if target_article_type in compatible_types:
+        for compatible_type in compatible_types[target_article_type]:
+            recommended_items = get_ml_recommendations(
+                target_idx, compatible_type, target_id, 
+                target_gender, target_color
+            )
+            if recommended_items:
+                recommendations_dict[compatible_type] = [Item(**item) for item in recommended_items]
+
+    # 4. Enhanced Accessory Recommendations
+    # Base accessories by usage
+    accessory_list = []
+    if target_usage == "Formal":
+        accessory_list = ["Belts", "Ties", "Watches", "Cufflinks", "Clutches"]
+    elif target_usage == "Sports":
+        accessory_list = ["Caps", "Sports Shoes", "Socks", "Wristbands"]
+    elif target_usage == "Party":
+        accessory_list = ["Jewellery Set", "Clutches", "Heels", "Sunglasses"]
+    else:  # Casual/Ethnic/etc
+        accessory_list = ["Sunglasses", "Caps", "Backpacks", "Scarves"]
+
+    # Seasonal additions
+    seasonal_acc = {
+        "Winter": ["Scarves", "Gloves", "Mufflers"],
+        "Summer": ["Sunglasses", "Flip Flops", "Hats"],
+        "Spring": ["Scarves", "Flats"],
+        "Fall": ["Jackets", "Mufflers"]
+    }.get(target_season, [])
+    accessory_list += seasonal_acc
+
+    # Color coordination boost implemented in get_ml_recommendations
+    for accessory_type in set(accessory_list):
+        accessory_recs = get_ml_recommendations(
+            target_idx, accessory_type, target_id,
+            target_gender, target_color
+        )
+        if accessory_recs:
+            recommendations_dict[accessory_type] = [Item(**item) for item in accessory_recs]
+
+    return ProductPageResponse(
+        product=Item(**product),
+        recommendations=OutfitRecommendation(recommendations=recommendations_dict),
     )
 
-    current_category = product["subCategory"]
-    compatible_categories = category_mapping.get(current_category, [])
 
-    for category in compatible_categories:
-        items = get_ml_recommendations(target_idx, category, target_id)
-        for item in items:
-            item_obj = Item(**item)
-            if category == "Topwear":
-                recommendations.topwear.append(item_obj)
-            elif category == "Bottomwear":
-                recommendations.bottomwear.append(item_obj)
-            elif category in ["Footwear", "Shoes"]:
-                recommendations.footwear.append(item_obj)
-            elif category in ["Belts", "Watches", "Bags"]:
-                recommendations.accessories.append(item_obj)
+def get_ml_recommendations(
+    target_idx: int,
+    target_article_type: str,
+    target_id: str,
+    product_gender: str,
+    target_color: str,
+    top_n=3
+) -> List[Dict]:
+    """Enhanced recommendations with gender and color filters"""
+    df = ml_model.df
+    
+    # Filter by article type, gender, and exclude self
+    mask = (
+        (df["articleType"] == target_article_type) &
+        (df["id"] != target_id) &
+        (df["gender"].isin([product_gender, "Unisex"]))
+    )
+    category_df = df[mask]
+    
+    if category_df.empty:
+        return []
 
-    return ProductPageResponse(product=Item(**product), recommendations=recommendations)
+    # Feature processing
+    category_indices = category_df.index.tolist()
+    category_features = ml_model.combined_features[category_indices]
+    target_features = ml_model.combined_features[target_idx]
+
+    # Calculate similarity
+    similarities = cosine_similarity(target_features, category_features).flatten()
+    
+    # Color boost: +20% similarity for matching colors
+    color_matches = (category_df["baseColour"] == target_color).astype(float)
+    similarities += similarities.max() * 0.2 * color_matches
+
+    # Get top items
+    top_indices = np.argsort(similarities)[-top_n:][::-1]
+    results = category_df.iloc[top_indices].to_dict("records")
+    
+    # Format results
+    for item in results:
+        item["image_url"] = f"/static/images/{item['id']}.jpg"
+        item["id"] = int(item["id"])
+    return results
