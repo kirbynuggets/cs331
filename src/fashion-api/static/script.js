@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
     
-    fetch(`/product/${itemId}`)
+    fetch(`/api/product/${itemId}`)
     .then(response => response.json())
     .then(data => {
         // Display product details
