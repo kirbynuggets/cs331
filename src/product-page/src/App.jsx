@@ -3,6 +3,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProductPage from './ProductPage';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
+import RecommendFromImage from './RecommendFromImage';
 
 const theme = createTheme({
   palette: {
@@ -24,6 +25,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/product/:id" element={<ProductPage />} />
+          <Route path="/recommend-from-image" element={<RecommendFromImage />} />
           {/* Add other routes as needed */}
         </Routes>
       </BrowserRouter>
