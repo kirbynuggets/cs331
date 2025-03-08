@@ -44,5 +44,3 @@ def print_results(results):
         print(f"Path: {uri}")
         show_image_from_uri(uri)
         print("\n")
-
-print(query_db("red dress"))
