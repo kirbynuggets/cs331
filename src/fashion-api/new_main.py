@@ -1,28 +1,31 @@
+"""Main FastAPI application with ML model and database integration."""
+
 from typing import List, Dict, Any, Optional
+from contextlib import asynccontextmanager
+from io import BytesIO
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
-from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import KMeans
 from scipy.sparse import hstack
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 from PIL import Image
-import numpy as np
-import torch
-from io import BytesIO
-from sklearn.cluster import KMeans
 from transformers import CLIPProcessor, CLIPModel
-from contextlib import asynccontextmanager
+import uvicorn
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
     await startup_event()
     yield
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -42,6 +45,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 class MLModel:
+    """Class to store ML model and data for the application"""
+
     def __init__(self):
         self.df = None
         self.combined_features = None
@@ -118,6 +123,88 @@ async def startup_event():
         raise HTTPException(status_code=500, detail=f"Error during startup: {str(e)}")
 
 
+article_type_groups = {
+    "Shirts": ["Shirts", "Formal Shirts", "Casual Shirts"],
+    "Tshirts": ["Tshirts", "Round Neck Tshirts", "Polo Tshirts", "V-Neck Tshirts"],
+    "Tops": ["Tops", "Crop Tops", "Tank Tops", "Tube Tops"],
+    "Sweatshirts": ["Sweatshirts", "Hoodies"],
+    "Kurtas": ["Kurtas", "Kurtis"],  # Consider gender for Kurtis
+    "Jeans": ["Jeans", "Skinny Jeans", "Ripped Jeans", "Bootcut Jeans"],
+    "Trousers": ["Trousers", "Formal Trousers", "Chinos"],
+    "Shorts": ["Shorts", "Denim Shorts", "Cargo Shorts"],
+    "Leggings": ["Leggings", "Jeggings"],
+    "Skirts": [
+        "Skirts",
+        "A-Line Skirts",
+        "Pencil Skirts",
+        "Maxi Skirts",
+    ],  # Add more skirt types.
+    "Dresses": [
+        "Dresses",
+        "Maxi Dresses",
+        "Bodycon Dresses",
+        "A-Line Dresses",
+        "Shift Dresses",
+    ],  # Add more dress types
+    "Suits": ["Suits", "Pant Suits", "Skirt Suits"],  # Consider gender
+    "Blazers": ["Blazers", "Formal Blazers", "Casual Blazers"],
+    "Jackets": [
+        "Jackets",
+        "Denim Jackets",
+        "Leather Jackets",
+        "Bomber Jackets",
+        "Puffer Jackets",
+    ],  # Add more jacket types
+    "Formal Shoes": [
+        "Formal Shoes",
+        "Oxfords",
+        "Derbys",
+        "Loafers",
+        "Monk Straps",
+    ],  # Add more shoe types
+    "Casual Shoes": [
+        "Casual Shoes",
+        "Sneakers",
+        "Canvas Shoes",
+        "Slip-ons",
+    ],  # Add more
+    "Heels": ["Heels", "Stilettos", "Pumps", "Wedges", "Kitten Heels"],  # Add more
+    "Flats": ["Flats", "Ballerinas", "Loafers"],  # Add more
+    "Sarees": ["Sarees"],  # Add more saree types if your data supports it.
+    "Salwar": ["Salwar", "Churidar", "Patiala"],
+    # Add more accessory groupings
+    "Belts": ["Belts", "Leather Belts", "Fabric Belts"],
+    "Ties": ["Ties", "Bow Ties"],
+    "Watches": ["Watches"],
+    "Sunglasses": ["Sunglasses"],
+    "Bags": [
+        "Handbags",
+        "Clutches",
+        "Backpacks",
+        "Tote Bags",
+        "Sling Bags",
+        "Wallets",
+        "Laptop Bag",
+        "Duffel Bag",
+        "Messenger Bag",
+    ],
+    "Jewellery": [
+        "Jewellery Set",
+        "Necklace and Chains",
+        "Pendant",
+        "Earrings",
+        "Ring",
+        "Bracelet",
+        "Bangle",
+    ],
+    "Scarves": ["Scarves", "Stoles"],
+    "Hats": ["Caps", "Hats"],
+    "Socks": ["Socks"],
+    "Gloves": ["Gloves"],
+    "Mufflers": ["Mufflers"],
+}
+
+
 class Item(BaseModel):
     id: int
     gender: str
@@ -169,7 +256,51 @@ def find_closest_color(target_color: np.ndarray, color_names: List[str]) -> str:
         "Navy Blue": (0, 0, 128),
         "Blue": (0, 0, 255),
         "Black": (0, 0, 0),
+        "Silver": (192, 192, 192),
+        "Grey": (128, 128, 128),
+        "Green": (0, 128, 0),
+        "Purple": (128, 0, 128),
+        "White": (255, 255, 255),
+        "Beige": (245, 245, 220),
+        "Brown": (165, 42, 42),
+        "Bronze": (205, 127, 50),
+        "Teal": (0, 128, 128),
+        "Copper": (184, 115, 51),
+        "Pink": (255, 192, 203),
+        "Off White": (253, 253, 247),
+        "Maroon": (128, 0, 0),
+        "Red": (255, 0, 0),
+        "Khaki": (240, 230, 140),
+        "Orange": (255, 165, 0),
+        "Coffee Brown": (139, 69, 19),
+        "Yellow": (255, 255, 0),
+        "Charcoal": (54, 69, 79),
+        "Gold": (255, 215, 0),
+        "Steel": (176, 196, 222),
+        "Tan": (210, 180, 140),
+        # "Multi": (0, 0, 0),  # Placeholder, as multi is not a single color
+        "Magenta": (255, 0, 255),
+        "Lavender": (230, 230, 250),
+        "Sea Green": (46, 139, 87),
+        "Cream": (255, 253, 208),
+        "Peach": (255, 218, 185),
+        "Olive": (128, 128, 0),
+        "Skin": (255, 224, 189),
+        "Burgundy": (128, 0, 32),
+        "Grey Melange": (190, 190, 190),  # close approximation.
+        "Rust": (183, 65, 14),
+        "Rose": (255, 0, 127),
+        "Lime Green": (50, 205, 50),
+        "Mauve": (224, 176, 255),
+        "Turquoise Blue": (0, 199, 140),
+        "Metallic": (170, 170, 170),  # close approximation.
+        "Mustard": (255, 219, 88),
+        "Taupe": (128, 128, 105),
+        "Nude": (238, 213, 183),
+        "Mushroom Brown": (189, 183, 107),
+        "Fluorescent Green": (127, 255, 0),
     }
+
     target_rgb = target_color.astype(int)
     min_dist = float("inf")
     closest = "Black"
@@ -181,45 +312,133 @@ def find_closest_color(target_color: np.ndarray, color_names: List[str]) -> str:
 
 
 def predict_attributes(image: Image.Image) -> dict:
+    """Predict attributes from image using CLIP model"""
     attributes = {}
-    
+
     gender_labels = ["Men", "Women", "Boys", "Girls", "Unisex"]
     inputs = ml_model.clip_processor(
         text=gender_labels, images=image, return_tensors="pt", padding=True
     )
     outputs = ml_model.clip_model(**inputs)
-    attributes["gender"] = gender_labels[outputs.logits_per_image.softmax(dim=1).argmax().item()]
+    attributes["gender"] = gender_labels[
+        outputs.logits_per_image.softmax(dim=1).argmax().item()
+    ]
 
-    article_labels = ml_model.df['articleType'].unique().tolist()
+    article_labels = ml_model.df["articleType"].unique().tolist()
     inputs = ml_model.clip_processor(
         text=article_labels, images=image, return_tensors="pt", padding=True
     )
     outputs = ml_model.clip_model(**inputs)
-    attributes["articleType"] = article_labels[outputs.logits_per_image.softmax(dim=1).argmax().item()]
+    attributes["articleType"] = article_labels[
+        outputs.logits_per_image.softmax(dim=1).argmax().item()
+    ]
 
-    season_labels = ["Summer", "Winter", "Spring", "Fall", "All-Season"]
+    season_labels = ["Summer", "Winter", "Spring", "Fall"]
     inputs = ml_model.clip_processor(
         text=season_labels, images=image, return_tensors="pt", padding=True
     )
     outputs = ml_model.clip_model(**inputs)
-    attributes["season"] = season_labels[outputs.logits_per_image.softmax(dim=1).argmax().item()]
+    attributes["season"] = season_labels[
+        outputs.logits_per_image.softmax(dim=1).argmax().item()
+    ]
 
-    usage_labels = ["Casual", "Formal", "Sports", "Party", "Ethnic"]
+    usage_labels = [
+        "Casual",
+        "Ethnic",
+        "Formal",
+        "Sports",
+        "Smart Casual",
+        "Travel",
+        "Party",
+        "Home",
+    ]
     inputs = ml_model.clip_processor(
         text=usage_labels, images=image, return_tensors="pt", padding=True
     )
     outputs = ml_model.clip_model(**inputs)
-    attributes["usage"] = usage_labels[outputs.logits_per_image.softmax(dim=1).argmax().item()]
+    attributes["usage"] = usage_labels[
+        outputs.logits_per_image.softmax(dim=1).argmax().item()
+    ]
 
     dominant_color = get_dominant_color(image)
     attributes["baseColour"] = find_closest_color(
         dominant_color, ml_model.df["baseColour"].unique().tolist()
     )
 
-    attributes.setdefault("masterCategory", "Apparel")
-    attributes.setdefault("subCategory", "General")
+    master_category_labels = [
+        "Apparel",
+        "Accessories",
+        "Footwear",
+        "Personal Care",
+        "Free Items",
+        "Sporting Goods",
+        "Home",
+    ]
+    inputs = ml_model.clip_processor(
+        text=master_category_labels, images=image, return_tensors="pt", padding=True
+    )
+    outputs = ml_model.clip_model(**inputs)
+    attributes["masterCategory"] = master_category_labels[
+        outputs.logits_per_image.softmax(dim=1).argmax().item()
+    ]
+
+    subcategory_labels = [
+        "Topwear",
+        "Bottomwear",
+        "Watches",
+        "Socks",
+        "Shoes",
+        "Belts",
+        "Flip Flops",
+        "Bags",
+        "Innerwear",
+        "Sandal",
+        "Shoe Accessories",
+        "Fragrance",
+        "Jewellery",
+        "Lips",
+        "Saree",
+        "Eyewear",
+        "Nails",
+        "Scarves",
+        "Dress",
+        "Loungewear and Nightwear",
+        "Wallets",
+        "Apparel Set",
+        "Headwear",
+        "Mufflers",
+        "Skin Care",
+        "Makeup",
+        "Free Gifts",
+        "Ties",
+        "Accessories",
+        "Skin",
+        "Beauty Accessories",
+        "Water Bottle",
+        "Eyes",
+        "Bath and Body",
+        "Gloves",
+        "Sports Accessories",
+        "Cufflinks",
+        "Sports Equipment",
+        "Stoles",
+        "Hair",
+        "Perfumes",
+        "Home Furnishing",
+        "Umbrellas",
+        "Wristbands",
+        "Vouchers",
+    ]
+    inputs = ml_model.clip_processor(
+        text=subcategory_labels, images=image, return_tensors="pt", padding=True
+    )
+    outputs = ml_model.clip_model(**inputs)
+    attributes["subCategory"] = subcategory_labels[
+        outputs.logits_per_image.softmax(dim=1).argmax().item()
+    ]
 
     return attributes
+
 
 @app.get("/api/product/{item_id}", response_model=ProductPageResponse)
 async def product_page(item_id: str):
@@ -245,6 +464,8 @@ async def product_page(item_id: str):
             "Waistcoat",
             "Formal Shoes",
             "Belts",
+            "Ties",
+            "Watches",
         ],
         "Tshirts": [
             "Jeans",
@@ -253,28 +474,172 @@ async def product_page(item_id: str):
             "Jackets",
             "Casual Shoes",
             "Caps",
+            "Sunglasses",
+            "Backpacks",
         ],
-        "Tops": ["Jeans", "Skirts", "Shorts", "Jackets"],
-        "Sweatshirts": ["Jeans", "Track Pants", "Caps", "Sports Shoes"],
-        "Kurtas": ["Churidar", "Trousers", "Dupatta", "Sandals"],
-        "Jeans": ["Shirts", "Tshirts", "Tops", "Casual Shoes", "Belts"],
-        "Trousers": ["Shirts", "Tshirts", "Blazers", "Formal Shoes", "Belts"],
-        "Shorts": ["Tshirts", "Casual Shoes", "Sandals"],
-        "Leggings": ["Tunics", "Kurtis", "Long Tshirts"],
-        "Skirts": ["Tops", "Shirts", "Flats", "Heels"],
-        "Dresses": ["Heels", "Flats", "Jackets", "Clutches", "Jewellery Set"],
-        "Jumpsuit": ["Jackets", "Heels", "Sandals"],
-        "Lehenga Choli": ["Dupatta", "Sandals", "Jewellery Set"],
-        "Suits": ["Formal Shoes", "Shirts", "Ties"],
-        "Blazers": ["Shirts", "Trousers", "Formal Shoes", "Ties"],
-        "Jackets": ["Tshirts", "Jeans", "Casual Shoes", "Sweatshirts"],
-        "Formal Shoes": ["Trousers", "Shirts", "Belts"],
-        "Casual Shoes": ["Jeans", "Tshirts", "Shorts"],
-        "Heels": ["Dresses", "Skirts", "Trousers"],
-        "Flats": ["Dresses", "Jeans", "Skirts"],
-        "Sarees": ["Sandals", "Jewellery Set", "Clutches"],
-        "Salwar": ["Kurtis", "Dupatta", "Sandals"],
+        "Tops": [
+            "Jeans",
+            "Skirts",
+            "Shorts",
+            "Jackets",
+            "Leggings",
+            "Heels",
+            "Flats",
+            "Sandals",
+            "Bags",
+        ],
+        "Sweatshirts": ["Jeans", "Track Pants", "Caps", "Sports Shoes", "Casual Shoes"],
+        "Kurtas": [
+            "Churidar",
+            "Trousers",
+            "Leggings",
+            "Dupatta",
+            "Sandals",
+            "Flats",
+            "Jewellery",
+        ],  # Gender specific
+        "Jeans": [
+            "Shirts",
+            "Tshirts",
+            "Tops",
+            "Casual Shoes",
+            "Belts",
+            "Jackets",
+            "Sweatshirts",
+        ],
+        "Trousers": [
+            "Shirts",
+            "Tshirts",
+            "Blazers",
+            "Formal Shoes",
+            "Belts",
+            "Ties",
+            "Watches",
+        ],
+        "Shorts": [
+            "Tshirts",
+            "Shirts",
+            "Casual Shoes",
+            "Sandals",
+            "Sunglasses",
+            "Caps",
+        ],
+        "Leggings": ["Tunics", "Kurtis", "Long Tshirts", "Flats", "Casual Shoes"],
+        "Skirts": ["Tops", "Shirts", "Flats", "Heels", "Sandals", "Belts", "Bags"],
+        "Dresses": [
+            "Heels",
+            "Flats",
+            "Sandals",
+            "Jackets",
+            "Clutches",
+            "Jewellery",
+            "Belts",
+            "Sunglasses",
+        ],
+        "Jumpsuit": ["Jackets", "Heels", "Sandals", "Belts", "Bags"],
+        "Lehenga Choli": ["Dupatta", "Sandals", "Heels", "Jewellery"],  # Very specific
+        "Suits": ["Formal Shoes", "Shirts", "Ties", "Belts", "Watches"],
+        "Blazers": [
+            "Shirts",
+            "Trousers",
+            "Jeans",
+            "Formal Shoes",
+            "Casual Shoes",
+            "Ties",
+            "Belts",
+        ],  # Versatile
+        "Jackets": [
+            "Tshirts",
+            "Shirts",
+            "Jeans",
+            "Trousers",
+            "Casual Shoes",
+            "Sweatshirts",
+        ],  # Very versatile
+        "Formal Shoes": ["Trousers", "Shirts", "Suits", "Belts", "Socks"],
+        "Casual Shoes": ["Jeans", "Tshirts", "Shorts", "Track Pants", "Socks"],
+        "Heels": ["Dresses", "Skirts", "Trousers", "Jeans", "Jumpsuits"],
+        "Flats": ["Dresses", "Jeans", "Skirts", "Leggings", "Shorts"],
+        "Sarees": [
+            "Sandals",
+            "Heels",
+            "Jewellery",
+            "Clutches",
+            "Blouse",
+        ],  # Blouse is crucial, add to your data if possible
+        "Salwar": ["Kurtis", "Dupatta", "Sandals", "Flats", "Jewellery"],
+        "Flip Flops": ["Shorts", "Casual Wear", "Loungewear"],  # Very casual
+        "Sandals": [
+            "Dresses",
+            "Skirts",
+            "Jeans",
+            "Shorts",
+            "Kurtas",
+            "Salwar",
+        ],  # Versatile in warm weather
+        "Sports Shoes": [
+            "Track Pants",
+            "Shorts",
+            "Tshirts",
+            "Sports Wear",
+            "Socks",
+        ],  # Activity-specific
+        "Track Pants": ["Tshirts", "Sweatshirts", "Sports Shoes"],
+        "Tunics": ["Leggings", "Jeans", "Flats", "Sandals"],
+        "Waistcoat": ["Shirts", "Trousers", "Formal Shoes"],  # Formal
+        "Long Tshirts": ["Leggings", "Jeans", "Casual Shoes"],
+        "Dupatta": ["Kurtas", "Salwar", "Lehenga Choli"],
+        "Churidar": ["Kurtas"],
+        "Blouse": ["Sarees"],
+        "Jewellery Set": ["Sarees", "Lehenga Choli", "Dresses", "Evening Gowns"],
+        "Clutches": ["Dresses", "Sarees", "Evening Gowns", "Formal Wear"],
     }
+
+    # Gender-Specific Refinements (within compatible_types)
+    for item in [
+        "Dresses",
+        "Skirts",
+        "Heels",
+        "Flats",
+        "Sarees",
+        "Salwar",
+        "Kurtis",
+        "Lehenga Choli",
+        "Tops",
+        "Tunics",
+        "Jewellery Set",
+        "Clutches",
+        "Handbags",
+    ]:
+        compatible_types.setdefault(f"{item} (Women)", compatible_types.get(item, []))
+        if item in compatible_types:
+            del compatible_types[item]
+
+    for item in [
+        "Shirts",
+        "Tshirts",
+        "Jeans",
+        "Trousers",
+        "Shorts",
+        "Suits",
+        "Blazers",
+        "Jackets",
+        "Formal Shoes",
+        "Casual Shoes",
+        "Track Pants",
+        "Waistcoat",
+        "Ties",
+        "Belts",
+        "Watches",
+        "Caps",
+        "Sunglasses",
+        "Sports Shoes",
+        "Flip Flops",
+        "Sandals",
+    ]:
+        compatible_types.setdefault(f"{item} (Men)", compatible_types.get(item, []))
+        if item in compatible_types:
+            del compatible_types[item]
 
     if target_gender in ["Women", "Girls"]:
         compatible_types.update(
@@ -303,25 +668,93 @@ async def product_page(item_id: str):
                     Item(**item) for item in recommended_items
                 ]
 
+    # Expanded Accessory Lists (more granular)
+    formal_accessories = [
+        "Belts",
+        "Ties",
+        "Watches",
+        "Cufflinks",
+        "Formal Shoes",
+        "Pocket Squares",
+        "Tie Clips",
+    ]  # Add more
+    casual_accessories = [
+        "Sunglasses",
+        "Caps",
+        "Backpacks",
+        "Casual Shoes",
+        "Sneakers",
+        "Belts",
+        "Watches",
+    ]
+    sports_accessories = [
+        "Caps",
+        "Sports Shoes",
+        "Socks",
+        "Wristbands",
+        "Headbands",
+        "Sports Bags",
+    ]
+    party_accessories = [
+        "Jewellery",
+        "Clutches",
+        "Heels",
+        "High Heels",
+        "Evening Bags",
+        "Scarves",
+        "Stoles",
+    ]  # More specific
+    ethnic_accessories = [
+        "Jewellery",
+        "Bangles",
+        "Bindis",
+        "Jhumkas",
+        "Maang Tikka",
+        "Anklets",
+        "Sandals",
+        "Mojaris",
+    ]  # Indian context
+
+    # Seasonal Accessories (refined)
+    seasonal_accessories = {
+        "Winter": ["Scarves", "Gloves", "Mufflers", "Beanies", "Woolen Caps", "Boots"],
+        "Summer": ["Sunglasses", "Flip Flops", "Hats", "Straw Hats", "Sandals"],
+        "Spring": ["Light Scarves", "Flats", "Ballerinas", "Cardigans"],
+        "Fall": ["Jackets", "Boots", "Ankle Boots", "Scarves", "Light Sweaters"],
+    }
+
+    # Combining Accessories (this is NEW logic)
+    accessory_combinations = {
+        "Formal": formal_accessories,
+        "Casual": casual_accessories,
+        "Sports": sports_accessories,
+        "Party": party_accessories,
+        "Ethnic": ethnic_accessories,
+        "Travel": [
+            "Backpacks",
+            "Sunglasses",
+            "Comfortable Shoes",
+            "Crossbody Bags",
+            "Hats",
+        ],
+        "Home": [],  # Minimal accessories at home
+        "Smart Casual": [
+            "Belts",
+            "Watches",
+            "Loafers",
+            "Blazers",
+            "Chinos",
+        ],  # Defined combination
+    }
+
     accessory_list = []
-    if target_usage == "Formal":
-        accessory_list = ["Belts", "Ties", "Watches", "Cufflinks", "Clutches"]
-    elif target_usage == "Sports":
-        accessory_list = ["Caps", "Sports Shoes", "Socks", "Wristbands"]
-    elif target_usage == "Party":
-        accessory_list = ["Jewellery Set", "Clutches", "Heels", "Sunglasses"]
-    else:
-        accessory_list = ["Sunglasses", "Caps", "Backpacks", "Scarves"]
+    accessory_list.extend(accessory_combinations.get(target_usage, []))
+    accessory_list.extend(seasonal_accessories.get(target_season, []))
+    accessory_list = list(set(accessory_list))  # Remove duplicates
 
-    seasonal_acc = {
-        "Winter": ["Scarves", "Gloves", "Mufflers"],
-        "Summer": ["Sunglasses", "Flip Flops", "Hats"],
-        "Spring": ["Scarves", "Flats"],
-        "Fall": ["Jackets", "Mufflers"],
-    }.get(target_season, [])
-    accessory_list += seasonal_acc
+    # Now use accessory_list in the existing loop, but consider:
 
-    for accessory_type in set(accessory_list):
+    for accessory_type in accessory_list:
         accessory_recs = get_ml_recommendations(
             target_idx, accessory_type, target_id, target_gender, target_color
         )
@@ -357,14 +790,131 @@ def get_ml_recommendations(
     if category_df.empty:
         return []
 
+    def color_compatibility(color1: str, color2: str) -> float:
+        """
+        Calculates a color compatibility score (0.0 to 1.0) based on the color wheel.
+        Higher scores indicate better compatibility.
+        """
+        color_wheel = {  # Simplified color wheel mapping (RGB tuples)
+            "Red": (255, 0, 0),
+            "Orange": (255, 165, 0),
+            "Yellow": (255, 255, 0),
+            "Green": (0, 255, 0),
+            "Blue": (0, 0, 255),
+            "Purple": (128, 0, 128),
+            "Pink": (255, 192, 203),
+            "Brown": (150, 75, 0),
+            "Black": (0, 0, 0),
+            "White": (255, 255, 255),
+            "Gray": (128, 128, 128),
+            "Navy Blue": (0, 0, 128),
+            "Silver": (192, 192, 192),
+            "Teal": (0, 128, 128),
+            "Maroon": (128, 0, 0),
+            "Olive": (128, 128, 0),
+            "Magenta": (255, 0, 255),
+            "Lime Green": (50, 205, 50),
+            "Cyan": (0, 255, 255),
+            "Beige": (245, 245, 220),
+            "Gold": (255, 215, 0),
+            "Turquiose Blue": (0, 199, 140),
+            "Peach": (255, 218, 185),
+        }
+
+        # Handle "Unknown" and missing colors
+        if color1 not in color_wheel or color2 not in color_wheel:
+            return 0.5  # Neutral compatibility
+
+        # Convert color names to RGB tuples.
+        rgb1 = np.array(color_wheel[color1])
+        rgb2 = np.array(color_wheel[color2])
+
+        # Calculate Euclidean distance (lower distance = higher similarity).
+        distance = np.linalg.norm(rgb1 - rgb2)
+
+        # Normalize distance to a 0-1 scale (approximate).
+        # Maximum possible distance is sqrt(3 * 255^2) ≈ 441.67
+        max_distance = 441.67
+        normalized_distance = distance / max_distance
+
+        # Invert to get compatibility score (higher is better).
+        compatibility_score = 1.0 - normalized_distance
+
+        return compatibility_score
+
+    color_scores = category_df["baseColour"].apply(
+        lambda x: color_compatibility(target_color, x)
+    )
+
+    category_df = category_df[color_scores >= 0.3]
+    if category_df.empty:  # Check after filtering
+        return []
+
+    def check_negative_constraints(target_item: dict, candidate_item: dict) -> bool:
+        """
+        Checks for incompatible combinations. Returns True if the combination is ALLOWED,
+        False if it should be REJECTED.  Uses helper function for clarity.
+        """
+
+        def get_group(article_type: str) -> Optional[str]:
+            """Helper function to find the group an article type belongs to."""
+            for group_name, types in article_type_groups.items():
+                if article_type in types:
+                    return group_name
+            return None  # Return None if no group is found
+
+        target_group = get_group(target_item["articleType"])
+        candidate_group = get_group(candidate_item["articleType"])
+
+        # Handle cases where one or both items don't belong to a defined group.
+        if target_group is None or candidate_group is None:
+            return True  # Default to allowing if groups are unknown
+
+        # Example: Don't recommend sandals with formal trousers.
+        if target_group == "Trousers" and candidate_group == "Casual Shoes":
+            # Further refine: Only block if the *specific* type is incompatible.
+            if candidate_item["articleType"] in ["Sandals", "Flip Flops"]:
+                return False
+        if target_group == "Trousers" and candidate_group == "Formal Shoes":
+            if candidate_item["articleType"] in ["Sandals", "Flip Flops"]:
+                return False
+
+        if target_group == "Shirts" and candidate_group == "Tshirts":
+            return False
+
+        if target_group == "Tshirts" and candidate_group == "Shirts":
+            return False
+        # Don't recommend flip-flops with anything formal.
+        if candidate_group == "Casual Shoes" and target_item["usage"] == "Formal":
+            if candidate_item["articleType"] in ["Flip Flops"]:
+                return False
+
+        # Add more negative constraints here, using group checks!
+
+        return True  # Combination is allowed
+
+    for index, row in category_df.iterrows():
+        if not check_negative_constraints(
+            ml_model.df.iloc[target_idx].to_dict(), row.to_dict()
+        ):
+            category_df.drop(index, inplace=True)
+
+    if category_df.empty:  # Check after filtering
+        return []
+
+    # --- CRITICAL CHANGE: Calculate color_matches AFTER filtering ---
+    # --- CRITICAL CHANGE: Calculate these AFTER all filtering ---
     category_indices = category_df.index.tolist()
     category_features = ml_model.combined_features[category_indices]
-    target_features = ml_model.combined_features[target_idx]
+    color_matches = (category_df["baseColour"] == target_color).astype(float)
+
+    target_features = ml_model.combined_features[
+        target_idx
+    ]  # This should be before similarities
 
     similarities = cosine_similarity(target_features, category_features).flatten()
 
-    color_matches = (category_df["baseColour"] == target_color).astype(float)
-    similarities += similarities.max() * 0.2 * color_matches
+    similarities += similarities.max() * 0.2 * color_matches  # Now shapes will match
 
     top_indices = np.argsort(similarities)[-top_n:][::-1]
     results = category_df.iloc[top_indices].to_dict("records")
@@ -389,11 +939,16 @@ async def recommend_from_image(file: UploadFile = File(...)):
         )
 
         categorical_cols = [
-            "gender", "masterCategory", "subCategory",
-            "articleType", "baseColour", "season", "usage"
+            "gender",
+            "masterCategory",
+            "subCategory",
+            "articleType",
+            "baseColour",
+            "season",
+            "usage",
         ]
         categorical_data = [attributes.get(col, "Unknown") for col in categorical_cols]
-        
+
         onehot = ml_model.onehot_encoder.transform([categorical_data])
         tfidf = ml_model.tfidf_vectorizer.transform([synthetic_name])
         target_features = hstack([onehot, tfidf])
@@ -402,58 +957,223 @@ async def recommend_from_image(file: UploadFile = File(...)):
         target_article_type = attributes.get("articleType", "Shirts")
         target_gender = attributes.get("gender", "Unisex")
         target_usage = attributes.get("usage", "Casual")
-        target_season = attributes.get("season", "All-Season")
+        target_season = attributes.get(
+            "season", "Summer"
+        )  # Summer being the most common season (48% in the dataset)
         target_color = attributes.get("baseColour", "Black")
 
         compatible_types = {
-        "Shirts": [
+            "Shirts": [
+                "Trousers",
+                "Jeans",
+                "Shorts",
+                "Blazers",
+                "Waistcoat",
+                "Formal Shoes",
+                "Belts",
+                "Ties",
+                "Watches",
+            ],
+            "Tshirts": [
+                "Jeans",
+                "Shorts",
+                "Track Pants",
+                "Jackets",
+                "Casual Shoes",
+                "Caps",
+                "Sunglasses",
+                "Backpacks",
+            ],
+            "Tops": [
+                "Jeans",
+                "Skirts",
+                "Shorts",
+                "Jackets",
+                "Leggings",
+                "Heels",
+                "Flats",
+                "Sandals",
+                "Bags",
+            ],
+            "Sweatshirts": [
+                "Jeans",
+                "Track Pants",
+                "Caps",
+                "Sports Shoes",
+                "Casual Shoes",
+            ],
+            "Kurtas": [
+                "Churidar",
+                "Trousers",
+                "Leggings",
+                "Dupatta",
+                "Sandals",
+                "Flats",
+                "Jewellery",
+            ],  # Gender specific
+            "Jeans": [
+                "Shirts",
+                "Tshirts",
+                "Tops",
+                "Casual Shoes",
+                "Belts",
+                "Jackets",
+                "Sweatshirts",
+            ],
+            "Trousers": [
+                "Shirts",
+                "Tshirts",
+                "Blazers",
+                "Formal Shoes",
+                "Belts",
+                "Ties",
+                "Watches",
+            ],
+            "Shorts": [
+                "Tshirts",
+                "Shirts",
+                "Casual Shoes",
+                "Sandals",
+                "Sunglasses",
+                "Caps",
+            ],
+            "Leggings": ["Tunics", "Kurtis", "Long Tshirts", "Flats", "Casual Shoes"],
+            "Skirts": ["Tops", "Shirts", "Flats", "Heels", "Sandals", "Belts", "Bags"],
+            "Dresses": [
+                "Heels",
+                "Flats",
+                "Sandals",
+                "Jackets",
+                "Clutches",
+                "Jewellery",
+                "Belts",
+                "Sunglasses",
+            ],
+            "Jumpsuit": ["Jackets", "Heels", "Sandals", "Belts", "Bags"],
+            "Lehenga Choli": [
+                "Dupatta",
+                "Sandals",
+                "Heels",
+                "Jewellery",
+            ],  # Very specific
+            "Suits": ["Formal Shoes", "Shirts", "Ties", "Belts", "Watches"],
+            "Blazers": [
+                "Shirts",
+                "Trousers",
+                "Jeans",
+                "Formal Shoes",
+                "Casual Shoes",
+                "Ties",
+                "Belts",
+            ],  # Versatile
+            "Jackets": [
+                "Tshirts",
+                "Shirts",
+                "Jeans",
+                "Trousers",
+                "Casual Shoes",
+                "Sweatshirts",
+            ],  # Very versatile
+            "Formal Shoes": ["Trousers", "Shirts", "Suits", "Belts", "Socks"],
+            "Casual Shoes": ["Jeans", "Tshirts", "Shorts", "Track Pants", "Socks"],
+            "Heels": ["Dresses", "Skirts", "Trousers", "Jeans", "Jumpsuits"],
+            "Flats": ["Dresses", "Jeans", "Skirts", "Leggings", "Shorts"],
+            "Sarees": [
+                "Sandals",
+                "Heels",
+                "Jewellery",
+                "Clutches",
+                "Blouse",
+            ],  # Blouse is crucial, add to your data if possible
+            "Salwar": ["Kurtis", "Dupatta", "Sandals", "Flats", "Jewellery"],
+            "Flip Flops": ["Shorts", "Casual Wear", "Loungewear"],  # Very casual
+            "Sandals": [
+                "Dresses",
+                "Skirts",
+                "Jeans",
+                "Shorts",
+                "Kurtas",
+                "Salwar",
+            ],  # Versatile in warm weather
+            "Sports Shoes": [
+                "Track Pants",
+                "Shorts",
+                "Tshirts",
+                "Sports Wear",
+                "Socks",
+            ],  # Activity-specific
+            "Track Pants": ["Tshirts", "Sweatshirts", "Sports Shoes"],
+            "Tunics": ["Leggings", "Jeans", "Flats", "Sandals"],
+            "Waistcoat": ["Shirts", "Trousers", "Formal Shoes"],  # Formal
+            "Long Tshirts": ["Leggings", "Jeans", "Casual Shoes"],
+            "Dupatta": ["Kurtas", "Salwar", "Lehenga Choli"],
+            "Churidar": ["Kurtas"],
+            "Blouse": ["Sarees"],
+            "Jewellery Set": ["Sarees", "Lehenga Choli", "Dresses", "Evening Gowns"],
+            "Clutches": ["Dresses", "Sarees", "Evening Gowns", "Formal Wear"],
+        }
+
+        # Gender-Specific Refinements (within compatible_types)
+        for item in [
+            "Dresses",
+            "Skirts",
+            "Heels",
+            "Flats",
+            "Sarees",
+            "Salwar",
+            "Kurtis",
+            "Lehenga Choli",
+            "Tops",
+            "Tunics",
+            "Jewellery Set",
+            "Clutches",
+            "Handbags",
+        ]:
+            compatible_types.setdefault(
+                f"{item} (Women)", compatible_types.get(item, [])
+            )
+            if item in compatible_types:
+                del compatible_types[item]
+
+        for item in [
+            "Shirts",
+            "Tshirts",
+            "Jeans",
             "Trousers",
-            "Jeans",
             "Shorts",
+            "Suits",
             "Blazers",
-            "Waistcoat",
-            "Formal Shoes",
-            "Belts",
-        ],
-        "Tshirts": [
-            "Jeans",
-            "Shorts",
-            "Track Pants",
             "Jackets",
+            "Formal Shoes",
             "Casual Shoes",
+            "Track Pants",
+            "Waistcoat",
+            "Ties",
+            "Belts",
+            "Watches",
             "Caps",
-        ],
-        "Tops": ["Jeans", "Skirts", "Shorts", "Jackets"],
-        "Sweatshirts": ["Jeans", "Track Pants", "Caps", "Sports Shoes"],
-        "Kurtas": ["Churidar", "Trousers", "Dupatta", "Sandals"],
-        "Jeans": ["Shirts", "Tshirts", "Tops", "Casual Shoes", "Belts"],
-        "Trousers": ["Shirts", "Tshirts", "Blazers", "Formal Shoes", "Belts"],
-        "Shorts": ["Tshirts", "Casual Shoes", "Sandals"],
-        "Leggings": ["Tunics", "Kurtis", "Long Tshirts"],
-        "Skirts": ["Tops", "Shirts", "Flats", "Heels"],
-        "Dresses": ["Heels", "Flats", "Jackets", "Clutches", "Jewellery Set"],
-        "Jumpsuit": ["Jackets", "Heels", "Sandals"],
-        "Lehenga Choli": ["Dupatta", "Sandals", "Jewellery Set"],
-        "Suits": ["Formal Shoes", "Shirts", "Ties"],
-        "Blazers": ["Shirts", "Trousers", "Formal Shoes", "Ties"],
-        "Jackets": ["Tshirts", "Jeans", "Casual Shoes", "Sweatshirts"],
-        "Formal Shoes": ["Trousers", "Shirts", "Belts"],
-        "Casual Shoes": ["Jeans", "Tshirts", "Shorts"],
-        "Heels": ["Dresses", "Skirts", "Trousers"],
-        "Flats": ["Dresses", "Jeans", "Skirts"],
-        "Sarees": ["Sandals", "Jewellery Set", "Clutches"],
-        "Salwar": ["Kurtis", "Dupatta", "Sandals"],
-    }
+            "Sunglasses",
+            "Sports Shoes",
+            "Flip Flops",
+            "Sandals",
+        ]:
+            compatible_types.setdefault(f"{item} (Men)", compatible_types.get(item, []))
+            if item in compatible_types:
+                del compatible_types[item]
 
         if target_gender in ["Women", "Girls"]:
-            compatible_types.update({
-                "Dresses": ["Heels", "Flats", "Jackets", "Clutches", "Sunglasses"],
-                "Tops": ["Skirts", "Shorts", "Jackets"],
-            })
+            compatible_types.update(
+                {
+                    "Dresses": ["Heels", "Flats", "Jackets", "Clutches", "Sunglasses"],
+                    "Tops": ["Skirts", "Shorts", "Jackets"],
+                }
+            )
         elif target_gender in ["Men", "Boys"]:
-            compatible_types.update({
-                "Shirts": ["Trousers", "Blazers", "Formal Shoes", "Ties"],
-            })
+            compatible_types.update(
+                {
+                    "Shirts": ["Trousers", "Blazers", "Formal Shoes", "Ties"],
+                }
+            )
 
         if target_article_type in compatible_types:
             for compatible_type in compatible_types[target_article_type]:
@@ -463,29 +1183,112 @@ async def recommend_from_image(file: UploadFile = File(...)):
                     "dummy_id",
                     target_gender,
                     target_color,
-                    top_n=2
+                    top_n=2,
                 )
                 if recs:
                     recommendations_dict[compatible_type] = recs
 
-        accessory_list = []
-        if target_usage == "Formal":
-            accessory_list = ["Belts", "Ties", "Watches", "Cufflinks", "Clutches"]
-        elif target_usage == "Sports":
-            accessory_list = ["Caps", "Sports Shoes", "Socks", "Wristbands"]
-        elif target_usage == "Party":
-            accessory_list = ["Jewellery Set", "Clutches", "Heels", "Sunglasses"]
-        else:
-            accessory_list = ["Sunglasses", "Caps", "Backpacks", "Scarves"]
+        # Expanded Accessory Lists (more granular)
+        formal_accessories = [
+            "Belts",
+            "Ties",
+            "Watches",
+            "Cufflinks",
+            "Formal Shoes",
+            "Pocket Squares",
+            "Tie Clips",
+        ]  # Add more
+        casual_accessories = [
+            "Sunglasses",
+            "Caps",
+            "Backpacks",
+            "Casual Shoes",
+            "Sneakers",
+            "Belts",
+            "Watches",
+        ]
+        sports_accessories = [
+            "Caps",
+            "Sports Shoes",
+            "Socks",
+            "Wristbands",
+            "Headbands",
+            "Sports Bags",
+        ]
+        party_accessories = [
+            "Jewellery",
+            "Clutches",
+            "Heels",
+            "High Heels",
+            "Evening Bags",
+            "Scarves",
+            "Stoles",
+        ]  # More specific
+        ethnic_accessories = [
+            "Jewellery",
+            "Bangles",
+            "Bindis",
+            "Jhumkas",
+            "Maang Tikka",
+            "Anklets",
+            "Sandals",
+            "Mojaris",
+        ]  # Indian context
 
-        for accessory_type in set(accessory_list):
+        # Seasonal Accessories (refined)
+        seasonal_accessories = {
+            "Winter": [
+                "Scarves",
+                "Gloves",
+                "Mufflers",
+                "Beanies",
+                "Woolen Caps",
+                "Boots",
+            ],
+            "Summer": ["Sunglasses", "Flip Flops", "Hats", "Straw Hats", "Sandals"],
+            "Spring": ["Light Scarves", "Flats", "Ballerinas", "Cardigans"],
+            "Fall": ["Jackets", "Boots", "Ankle Boots", "Scarves", "Light Sweaters"],
+        }
+
+        # Combining Accessories (this is NEW logic)
+        accessory_combinations = {
+            "Formal": formal_accessories,
+            "Casual": casual_accessories,
+            "Sports": sports_accessories,
+            "Party": party_accessories,
+            "Ethnic": ethnic_accessories,
+            "Travel": [
+                "Backpacks",
+                "Sunglasses",
+                "Comfortable Shoes",
+                "Crossbody Bags",
+                "Hats",
+            ],
+            "Home": [],  # Minimal accessories at home
+            "Smart Casual": [
+                "Belts",
+                "Watches",
+                "Loafers",
+                "Blazers",
+                "Chinos",
+            ],  # Defined combination
+        }
+
+        accessory_list = []
+        accessory_list.extend(accessory_combinations.get(target_usage, []))
+        accessory_list.extend(seasonal_accessories.get(target_season, []))
+        accessory_list = list(set(accessory_list))  # Remove duplicates
+
+        # Now use accessory_list in the existing loop, but consider:
+
+        for accessory_type in accessory_list:
             accessory_recs = get_ml_recommendations(
                 0,  # Dummy index
                 accessory_type,
                 "dummy_id",
                 target_gender,
                 target_color,
-                top_n=2
+                top_n=2,
             )
             if accessory_recs:
                 recommendations_dict[accessory_type] = accessory_recs
@@ -493,4 +1296,12 @@ async def recommend_from_image(file: UploadFile = File(...)):
         return OutfitRecommendation(recommendations=recommendations_dict)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error processing image: {str(e)}"
+        ) from e
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        app, host="localhost", port=8000) #, ssl_keyfile="../../key.pem", ssl_certfile="../../cert.pem"
+    # )
