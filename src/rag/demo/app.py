@@ -1,5 +1,6 @@
 """ A simple Flask application to serve as a front-end for the search engine. """
 import os
+import base64
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from query_db import query_db
 
@@ -29,19 +30,23 @@ def search():
 
     try:
         results = query_db(query, results=5)
-
+        results["uris"] = [[uri.replace("/kaggle/input/fashion-product-images-dataset/fashion-dataset/", "" ) for uri in results['uris'][0]]]
         image_data = []
         for i in range(len(results["ids"][0])):
-            relative_uri = os.path.join(
-                "datasets/images", os.path.basename(results["uris"][0][i])
+            image_path = os.path.join(
+                "src\\fashion-api\\static\\images", os.path.basename(results["uris"][0][i])
             )
-            image_data.append(
-                {
-                    "id": results["ids"][0][i],
-                    "distance": results["distances"][0][i],
-                    "uri": relative_uri,
-                }
-            )
+            try:
+                with open(image_path, "rb") as img_file:
+                    encoded_img = base64.b64encode(img_file.read()).decode('utf-8')
+                    image_data.append({
+                        "id": results["ids"][0][i],
+                        "distance": results["distances"][0][i],
+                        "image": f"data:image/jpeg;base64,{encoded_img}"
+                    })
+            except FileNotFoundError:
+                print(f"Image not found: {image_path}")
+                continue
         return jsonify({"images": image_data})
 
     except Exception as e:

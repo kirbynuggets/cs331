@@ -16,7 +16,7 @@ def show_image_from_uri(uri):
 
 def get_fashion_collection():
     """Gets a connection to the Fashion collection in ChromaDB.  Handles initialization."""
-    chroma_client = chromadb.PersistentClient(path="database/fashion.db")
+    chroma_client = chromadb.PersistentClient(path="database/production_fashion.db")
     image_loader = ImageLoader()
     embedding_function = OpenCLIPEmbeddingFunction()
     return chroma_client.get_collection(
@@ -44,3 +44,5 @@ def print_results(results):
         print(f"Path: {uri}")
         show_image_from_uri(uri)
         print("\n")
+
+print(query_db("red dress"))
