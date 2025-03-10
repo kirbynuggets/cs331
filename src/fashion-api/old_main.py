@@ -1,9 +1,11 @@
 """Main FastAPI application with ML model and database integration."""
 
+import base64
+import os
 from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from io import BytesIO
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +20,9 @@ import numpy as np
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 import uvicorn
-
+import chromadb
+from chromadb.utils.embedding_functions import OpenCLIPEmbeddingFunction
+from chromadb.utils.data_loaders import ImageLoader
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -238,7 +242,7 @@ def get_item(item_id: str) -> Dict[str, Any]:
             raise HTTPException(status_code=404, detail="Item not found")
         item = dict(item)
         item["id"] = int(item["id"])
-        item["image_url"] = f"/static/high_res_images/{item['id']}.jpg"
+        item["image_url"] = f"/static/images/{item['id']}.jpg"
         return item
 
 
@@ -920,7 +924,7 @@ def get_ml_recommendations(
     results = category_df.iloc[top_indices].to_dict("records")
 
     for item in results:
-        item["image_url"] = f"/static/high_res_images/{item['id']}.jpg"
+        item["image_url"] = f"/static/images/{item['id']}.jpg"
         item["id"] = int(item["id"])
     return results
 
@@ -1299,6 +1303,60 @@ async def recommend_from_image(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=500, detail=f"Error processing image: {str(e)}"
         ) from e
+
+def get_fashion_collection():
+    """Gets a connection to the Fashion collection in ChromaDB.  Handles initialization."""
+    chroma_client = chromadb.PersistentClient(path="../../database/production_fashion.db")
+    image_loader = ImageLoader()
+    embedding_function = OpenCLIPEmbeddingFunction()
+    return chroma_client.get_collection(
+        "fashion",
+        embedding_function=embedding_function,
+        data_loader=image_loader,
+    )
+
+
+def query_db(query, results=3):
+    """Query the database for images that match the text query."""
+    fashion_collection = get_fashion_collection()  # Get the collection
+    print(f"Querying the database for: {query}")
+    results = fashion_collection.query(
+        query_texts=[query], n_results=results, include=["uris", "distances"]
+    )
+    return results
+
+class SearchResult(BaseModel):
+    images: List[Dict[str, Any]]
+
+@app.post("/api/search", response_model=SearchResult)
+async def search(query: str = Form(...)):
+    """Handles search requests from the frontend."""
+    try:
+        results = query_db(query, results=5)
+        results["uris"] = [[uri.replace("/kaggle/input/fashion-product-images-dataset/fashion-dataset/", "" ) for uri in results['uris'][0]]]
+        
+        image_data = []
+        for i in range(len(results["ids"][0])):
+            image_path = os.path.join(
+                "static/images", os.path.basename(results["uris"][0][i])
+            )
+            try:
+                with open(image_path, "rb") as img_file:
+                    encoded_img = base64.b64encode(img_file.read()).decode('utf-8')
+                    image_data.append({
+                        "id": results["ids"][0][i],
+                        "distance": results["distances"][0][i],
+                        "image": f"data:image/jpeg;base64,{encoded_img}"
+                    })
+            except FileNotFoundError:
+                print(f"Image not found: {image_path}")
+                continue
+                
+        return {"images": image_data}
+
+    except Exception as e:
+        print(f"Error during search: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred during search")
 
 
 if __name__ == "__main__":
