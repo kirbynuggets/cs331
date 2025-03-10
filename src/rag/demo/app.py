@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 DATASETS_DIR = os.path.abspath("datasets")
 
+# RUN FROM PROJECT ROOT
 
 @app.route("/datasets/images/<filename>")
 def get_image(filename):
@@ -34,7 +35,7 @@ def search():
         image_data = []
         for i in range(len(results["ids"][0])):
             image_path = os.path.join(
-                "src\\fashion-api\\static\\images", os.path.basename(results["uris"][0][i])
+                "src/fashion-api/static/images", os.path.basename(results["uris"][0][i])
             )
             try:
                 with open(image_path, "rb") as img_file:
