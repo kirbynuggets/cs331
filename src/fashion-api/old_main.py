@@ -2,6 +2,7 @@
 
 import base64
 import os
+from random import sample
 from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from io import BytesIO
@@ -23,6 +24,7 @@ import uvicorn
 import chromadb
 from chromadb.utils.embedding_functions import OpenCLIPEmbeddingFunction
 from chromadb.utils.data_loaders import ImageLoader
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -229,6 +231,10 @@ class OutfitRecommendation(BaseModel):
 class ProductPageResponse(BaseModel):
     product: Item
     recommendations: OutfitRecommendation
+
+
+class ProductsResponse(BaseModel):
+    products: List[Item]
 
 
 def get_item(item_id: str) -> Dict[str, Any]:
@@ -773,6 +779,36 @@ async def product_page(item_id: str):
     )
 
 
+@app.get("/api/products", response_model=ProductsResponse)
+async def get_random_products(limit: int = 10):
+    """
+    Returns a random selection of products from the database.
+
+    Args:
+        limit (int): Number of products to return (default: 10)
+    """
+    try:
+        all_product_ids = ml_model.df["id"].tolist()
+
+        selected_ids = sample(all_product_ids, min(limit, len(all_product_ids)))
+
+        products = []
+        for product_id in selected_ids:
+            try:
+                product = get_item(str(product_id))
+                products.append(Item(**product))
+            except HTTPException:
+                continue
+
+        return ProductsResponse(products=products)
+
+    except Exception as e:
+        print(f"Error fetching random products: {e}")
+        raise HTTPException(
+            status_code=500, detail="An error occurred while fetching random products"
+        )
+
+
 def get_ml_recommendations(
     target_idx: int,
     target_article_type: str,
@@ -1304,9 +1340,12 @@ async def recommend_from_image(file: UploadFile = File(...)):
             status_code=500, detail=f"Error processing image: {str(e)}"
         ) from e
 
+
 def get_fashion_collection():
     """Gets a connection to the Fashion collection in ChromaDB.  Handles initialization."""
-    chroma_client = chromadb.PersistentClient(path="../../database/production_fashion.db")
+    chroma_client = chromadb.PersistentClient(
+        path="../../database/production_fashion.db"
+    )
     image_loader = ImageLoader()
     embedding_function = OpenCLIPEmbeddingFunction()
     return chroma_client.get_collection(
@@ -1325,16 +1364,25 @@ def query_db(query, results=3):
     )
     return results
 
+
 class SearchResult(BaseModel):
     images: List[Dict[str, Any]]
+
 
 @app.post("/api/search", response_model=SearchResult)
 async def search(query: str = Form(...)):
     """Handles search requests from the frontend."""
     try:
         results = query_db(query, results=5)
-        results["uris"] = [[uri.replace("/kaggle/input/fashion-product-images-dataset/fashion-dataset/", "" ) for uri in results['uris'][0]]]
-        
+        results["uris"] = [
+            [
+                uri.replace(
+                    "/kaggle/input/fashion-product-images-dataset/fashion-dataset/", ""
+                )
+                for uri in results["uris"][0]
+            ]
+        ]
+
         image_data = []
         for i in range(len(results["ids"][0])):
             image_path = os.path.join(
@@ -1342,16 +1390,18 @@ async def search(query: str = Form(...)):
             )
             try:
                 with open(image_path, "rb") as img_file:
-                    encoded_img = base64.b64encode(img_file.read()).decode('utf-8')
-                    image_data.append({
-                        "id": results["ids"][0][i],
-                        "distance": results["distances"][0][i],
-                        "image": f"data:image/jpeg;base64,{encoded_img}"
-                    })
+                    encoded_img = base64.b64encode(img_file.read()).decode("utf-8")
+                    image_data.append(
+                        {
+                            "id": results["ids"][0][i],
+                            "distance": results["distances"][0][i],
+                            "image": f"data:image/jpeg;base64,{encoded_img}",
+                        }
+                    )
             except FileNotFoundError:
                 print(f"Image not found: {image_path}")
                 continue
-                
+
         return {"images": image_data}
 
     except Exception as e:
@@ -1361,5 +1411,6 @@ async def search(query: str = Form(...)):
 
 if __name__ == "__main__":
     uvicorn.run(
-        app, host="localhost", port=8000) #, ssl_keyfile="../../key.pem", ssl_certfile="../../cert.pem"
+        app, host="localhost", port=8000
+    )  # , ssl_keyfile="../../key.pem", ssl_certfile="../../cert.pem"
     # )
