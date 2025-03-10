@@ -356,6 +356,6 @@ def get_ml_recommendations(
     results = category_df.iloc[top_indices].to_dict("records")
 
     for item in results:
-        item["image_url"] = f"/static/high_res_images/{item['id']}.jpg"
+        item["image_url"] = f"/static/images/{item['id']}.jpg"
         item["id"] = int(item["id"])
     return results

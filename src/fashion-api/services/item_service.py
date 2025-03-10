@@ -237,7 +237,7 @@ class ItemService:
             raise HTTPException(status_code=404, detail="Item not found")
         item_dict = item.__dict__
         item_dict["id"] = int(item_dict["id"])
-        item_dict["image_url"] = f"/static/high_res_images/{item_id}.jpg"
+        item_dict["image_url"] = f"/static/images/{item_id}.jpg"
         return item_dict
 
     async def get_product_page(self, item_id: str) -> ProductPageResponse:
