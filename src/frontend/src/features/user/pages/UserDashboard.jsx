@@ -43,15 +43,13 @@ import { styled, alpha } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { KeyboardArrowLeft, KeyboardArrowRight } from "@mui/icons-material";
 
-const image_url = "../../../assets/all-items"
-
 // Mock data for featured products
 const featuredProducts = [
   {
     id: 1,
     name: "Women's Summer Dress",
     price: "$49.99",
-    image: "../../../assets/all-items/image1.png",
+    image: "/assets/all-items/image1.png",
     category: "women",
   },
   {
