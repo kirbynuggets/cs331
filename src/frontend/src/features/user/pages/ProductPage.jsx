@@ -746,7 +746,8 @@ import {
   Rating,
   Badge,
   Snackbar,
-  Alert
+  Alert,
+  Grow
 } from '@mui/material';
 import { createTheme, ThemeProvider, responsiveFontSizes } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -1585,7 +1586,7 @@ const ProductPage = () => {
                 </QuickInfo>
 
                 {/* Color Selection */}
-                <Box sx={{ my: 3 }}>
+                {/* <Box sx={{ my: 3 }}>
                   <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
                     COLOR: <Typography component="span" sx={{ ml: 1, fontWeight: 'bold' }}>{selectedColor?.name}</Typography>
                   </Typography>
@@ -1600,7 +1601,7 @@ const ProductPage = () => {
                       </Tooltip>
                     ))}
                   </Box>
-                </Box>
+                </Box> */}
 
                 {/* Size Selection */}
                 <Box sx={{ my: 3 }}>
