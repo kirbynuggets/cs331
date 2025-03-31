@@ -103,6 +103,8 @@ const featuredProducts = [
   },
 ];
 
+
+
 // Hero banner carousel items
 const carouselItems = [
   {
@@ -628,8 +630,6 @@ const UserDashboard = ({ username }) => {
   };
 
   const handleLogout = () => {
-    window.localStorage.removeItem("loggedAdmin");
-    window.localStorage.removeItem("loggedUser");
     console.log("Logged out");
     navigate("/", { replace: true });
   };
