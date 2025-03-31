@@ -306,10 +306,9 @@ def optimized_mmr(
     final_selected_original_indices = [candidate_indices[i] for i in selected_candidate_idxs]
     return final_selected_original_indices
 
-
 def get_ml_recommendations(
     target_features: csr_matrix, # Can be sparse or dense initially
-    target_article_type: str,
+    target_article_type: str, # This IS the type we want recommendations FOR (e.g., "Ties", "Sneakers")
     product_gender: str,
     target_color: Optional[str],
     target_id: Optional[str] = None, # String ID
@@ -326,60 +325,82 @@ def get_ml_recommendations(
         logger.error("ML model components not initialized (Annoy, features, df).")
         return [], 0.0, 0.0, 0.0
 
-    # 1. Find initial candidates using Annoy
-    # Convert sparse target_features to dense for Annoy query
+    # 1. Find initial candidates using Annoy (based on original item features)
     target_vector_dense = target_features.toarray().flatten()
-    num_neighbors_to_fetch = min(ANNOY_SEARCH_K_FACTOR * top_n, annoy_index.get_n_items()) # Request more neighbors
+    num_neighbors_to_fetch = min(ANNOY_SEARCH_K_FACTOR * top_n * 2, annoy_index.get_n_items()) # Fetch even more neighbors initially
     annoy_start = time.time()
     initial_indices, _ = annoy_index.get_nns_by_vector(
         target_vector_dense, num_neighbors_to_fetch, search_k=-1, include_distances=True
     )
-    logger.info(f"Annoy search ({len(initial_indices)} neighbors) took {time.time() - annoy_start:.4f}s")
+    logger.info(f"[get_ml_recommendations] Annoy search ({len(initial_indices)} neighbors for {target_id or 'image'}) took {time.time() - annoy_start:.4f}s")
 
     if not initial_indices:
-        logger.warning("Annoy returned no neighbors.")
+        logger.warning(f"[get_ml_recommendations] Annoy returned no neighbors for {target_article_type}.")
         return [], 0.0, 0.0, 0.0
 
     # 2. Filter candidates based on rules
     filter_start = time.time()
-    # Get compatible types
+
+    # --- CORRECTED LOGIC for candidate_types ---
+    # Find the group the *requested* article type belongs to.
     target_group = next((group for group, types in ARTICLE_TYPE_GROUPS.items() if target_article_type in types), None)
-    compatible_types = COMPATIBLE_TYPES.get(target_article_type, [])
+
     if target_group:
-        candidate_types = list(set(ARTICLE_TYPE_GROUPS.get(target_group, []) + compatible_types))
+        # If the requested type is in a group, consider all types within that group as valid candidates.
+        # This allows recommending, e.g., different types of "Shirts" when "Shirts" is requested.
+        candidate_types = ARTICLE_TYPE_GROUPS.get(target_group, [target_article_type])
     else:
-        candidate_types = [target_article_type] + compatible_types # Fallback if target not in groups
+        # If the requested type isn't explicitly grouped (like "Watches"), only look for that specific type.
+        candidate_types = [target_article_type]
+
+    logger.info(f"[get_ml_recommendations] Filtering for request type '{target_article_type}'. Using candidate article types: {candidate_types}")
+    # --- End CORRECTED LOGIC ---
+
+
     # Fetch candidate details efficiently from DataFrame using .loc
     candidate_df = df.iloc[initial_indices].copy() # Use .copy() to avoid SettingWithCopyWarning
 
-    # Apply filters
-    mask = candidate_df["articleType"].isin(candidate_types)
-    mask &= candidate_df["gender"].isin([product_gender, "Unisex"])
+    # Apply filters sequentially and log counts
+    initial_candidate_count = len(candidate_df)
+    logger.debug(f"[get_ml_recommendations] Initial Annoy candidates for {target_article_type}: {initial_candidate_count}")
+
+    # Filter 1: Article Type
+    type_mask = candidate_df["articleType"].isin(candidate_types)
+    candidate_df = candidate_df[type_mask]
+    logger.debug(f"[get_ml_recommendations] After type filter {candidate_types}: {len(candidate_df)}")
+
+    # Filter 2: Gender
+    gender_mask = candidate_df["gender"].isin([product_gender, "Unisex"])
+    candidate_df = candidate_df[gender_mask]
+    logger.debug(f"[get_ml_recommendations] After gender filter {[product_gender, 'Unisex']}: {len(candidate_df)}")
+
+    # Filter 3: Exclude self
     if target_id:
-        mask &= (candidate_df["id"] != target_id) # Exclude target item itself
+        self_mask = (candidate_df["id"] != target_id)
+        candidate_df = candidate_df[self_mask]
+        logger.debug(f"[get_ml_recommendations] After self-exclusion filter ({target_id}): {len(candidate_df)}")
 
-    filtered_candidate_df = candidate_df[mask]
-
-    # Color compatibility filter (applied after initial filtering)
-    if target_color and not filtered_candidate_df.empty:
-         color_scores = filtered_candidate_df["baseColour"].apply(
+    # Filter 4: Color Compatibility (applied after primary filters)
+    if target_color and not candidate_df.empty:
+         color_scores = candidate_df["baseColour"].apply(
              lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
          )
-         # Dynamic threshold: Require min score only if enough candidates exist
-         min_color_threshold = 0.2 if len(filtered_candidate_df[color_scores >= 0.2]) >= top_n else 0.0
+         min_color_threshold = 0.2 if len(candidate_df[color_scores >= 0.2]) >= top_n else 0.0
          color_mask = color_scores >= min_color_threshold
-         filtered_candidate_df = filtered_candidate_df[color_mask]
+         candidate_df = candidate_df[color_mask]
+         logger.debug(f"[get_ml_recommendations] After color filter (threshold {min_color_threshold}): {len(candidate_df)}")
 
-    logger.info(f"Filtering took {time.time() - filter_start:.4f}s. Candidates reduced from {len(initial_indices)} to {len(filtered_candidate_df)}")
+    # Assign the finally filtered DataFrame
+    filtered_candidate_df = candidate_df
+
+    logger.info(f"[get_ml_recommendations] Filtering took {time.time() - filter_start:.4f}s. Candidates reduced from {initial_candidate_count} to {len(filtered_candidate_df)} for {target_article_type}")
 
     if filtered_candidate_df.empty:
-        logger.warning(f"No suitable candidates found after filtering for {target_article_type} (Gender: {product_gender}, Color: {target_color})")
+        logger.warning(f"[get_ml_recommendations] No suitable candidates found after filtering for {target_article_type} (Gender: {product_gender}, Color: {target_color})")
         return [], 0.0, 0.0, 0.0
 
     # 3. Prepare features for MMR
-    # Get the original indices of the filtered candidates
     filtered_original_indices = filtered_candidate_df.index.tolist()
-    # Extract the features for these candidates
     candidate_features_sparse = all_features[filtered_original_indices]
 
     # 4. Run Optimized MMR
@@ -391,17 +412,27 @@ def get_ml_recommendations(
         top_n,
         lambda_param=lambda_mmr
     )
-    logger.info(f"MMR selection took {time.time() - mmr_start:.4f}s")
+    logger.info(f"[get_ml_recommendations] MMR selection took {time.time() - mmr_start:.4f}s")
 
     if not selected_original_indices:
-        logger.warning("MMR did not select any items.")
+        logger.warning(f"[get_ml_recommendations] MMR did not select any items for {target_article_type}.")
+        # Optional: Fallback to just taking top N similar items from filtered_candidate_df?
+        # fallback_indices = filtered_candidate_df.index.tolist()[:top_n]
+        # selected_original_indices = fallback_indices # Uncomment for fallback
+        # if not selected_original_indices: # Check again if fallback also empty
         return [], 0.0, 0.0, 0.0
 
     # 5. Format results and calculate metrics
+    # Ensure we only select from the indices MMR returned
     results_df = df.loc[selected_original_indices]
     results = []
     for _, item_row in results_df.iterrows():
          item_dict = item_row.to_dict()
+         # Ensure the articleType matches what we filtered for (sanity check)
+         if item_dict.get('articleType') not in candidate_types:
+             logger.warning(f"MMR selected item {item_dict.get('id')} with unexpected type '{item_dict.get('articleType')}' when filtering for {candidate_types}. Skipping.")
+             continue # Skip this item if its type is wrong
+
          item_id_int = int(item_dict['id'])
          item_dict['id'] = item_id_int # Convert ID to int for response model
          item_dict['image_url'] = f"/static/images/{item_id_int}.jpg"
@@ -418,8 +449,8 @@ def get_ml_recommendations(
             serendipity_score = serendipity_measure(results, target_item_dict)
 
     total_time = time.time() - start_time
-    logger.info(f"Recommendation generation took {total_time:.4f}s. Found {len(results)} items.")
-    logger.info(f"Metrics - Novelty: {novelty_score:.3f}, Diversity: {diversity_score:.3f}, Serendipity: {serendipity_score:.3f}")
+    logger.info(f"[get_ml_recommendations] Recommendation generation for {target_article_type} took {total_time:.4f}s. Found {len(results)} items.")
+    # logger.info(f"Metrics - Novelty: {novelty_score:.3f}, Diversity: {diversity_score:.3f}, Serendipity: {serendipity_score:.3f}")
 
     return results, novelty_score, diversity_score, serendipity_score
 
