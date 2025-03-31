@@ -125,7 +125,6 @@ def preprocess_data(df: pd.DataFrame) -> tuple:
 
     return onehot_encoder, tfidf_vectorizer, combined_features, id_to_index
 
-
 def maximal_marginal_relevance(target_features, category_features, top_n: int, lambda_param: float = 0.1) -> np.ndarray:
     """Select highly diverse items using MMR."""
     selected_indices = []
@@ -228,7 +227,9 @@ def get_ml_recommendations(
         item["id"] = int(item["id"])
 
     logger.info(f"Recommended items: {[item['id'] for item in results]}")
-    logger.info(f"Item details: {[f'{item['articleType']} - {item['baseColour']}' for item in results]}")
+    # logger.info(f"Item details: {[f'{item['articleType']} - {item['baseColour']}' for item in results]}")
+    logger.info(f"Item details: [{item['articleType']} - {item['baseColour']} for item in results]")
+
 
     novelty_score = inverse_popularity_score(results)
     diversity_score = intra_list_diversity(results)
