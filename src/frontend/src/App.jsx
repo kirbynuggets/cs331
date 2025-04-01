@@ -1,13 +1,21 @@
+// src/App.jsx
 import React from 'react';
-import CustomThemeProvider from './components/CustomThemeProvider';
-import ResponsiveAppBar from './components/ResponsiveAppBar';
-import './App.css';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { AuthProvider } from './features/auth';
+import { BrowserRouter } from 'react-router-dom';
+import AppRoutes from './AppRoutes'; // We'll create this next
+import CustomThemeProvider from './components/common/CustomThemeProvider';
 
 function App() {
   return (
-    <CustomThemeProvider>
-      <ResponsiveAppBar />
-      <h1>React App</h1>
+    <CustomThemeProvider >
+      <CssBaseline />
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
     </CustomThemeProvider>
   );
 }
