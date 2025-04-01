@@ -1452,7 +1452,7 @@ const UserDashboard = ({ username = "Guest" }) => {
       </Container>
 
       {/* Featured Products - Enhanced with better styling */}
-      <Container maxWidth="lg" sx={{ mb: 8 }}>
+      <Container maxWidth="xl" sx={{ mb: 8, px: { xs: 6, sm: 8 } }}>
         <Box sx={{ mb: 5, textAlign: "center" }}>
           <Typography
             variant="overline"

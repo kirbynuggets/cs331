@@ -1754,7 +1754,7 @@ const ProductPage = () => {
 
         {/* Complete the Look Section */}
         {Object.keys(recommendations).length > 0 && (
-          <Box sx={{ mt: 8, mb: 4 }}>
+          <Box sx={{ mt: 8, mb: 4, pb: 8, px: 26, pt: 9}}>
             <Fade in={true} timeout={1200}>
               <div>
                 <SectionTitle variant="h2" sx={{ width: '100%', mb: 6, textAlign: 'center' }}>
