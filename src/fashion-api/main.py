@@ -1,17 +1,20 @@
-"""Main FastAPI application with ML model and database integration."""
+"""Main FastAPI application with ML model and database integration using SQLite and SQLAlchemy."""
 
 import os
 from random import sample, shuffle
 from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from io import BytesIO
-import time  # For timing
+import time
 
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, Column, Integer, String, Float, select, MetaData, Table, inspect
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import OneHotEncoder
@@ -23,22 +26,51 @@ from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 import chromadb
 from chromadb.utils.embedding_functions import OpenCLIPEmbeddingFunction
-from chromadb.utils.data_loaders import ImageLoader
-from annoy import AnnoyIndex  # Import Annoy
+from annoy import AnnoyIndex
 from constants import ARTICLE_TYPE_GROUPS, ACCESSORY_COMBINATIONS, SEASONAL_ACCESSORIES, COMPATIBLE_TYPES, COLOR_COMPATIBILITY
 import logging
+from sklearn.metrics import ndcg_score
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-DATABASE_URL = "mysql+pymysql://fashion_user:securepass@localhost/fashion_db"
+DATABASE_URL = "sqlite:///./database/fashion.db" # SQLite database file path
 STATIC_DIR = "static"
-CHROMA_DB_PATH = "../../database/production_fashion.db"
+CHROMA_DB_PATH = "../../database/production_fashion.db" # ChromaDB path - might not be directly used in this version but kept for consistency
 CORS_ORIGINS = ["http://localhost:5173", "http://localhost:5174"]
 ANNOY_INDEX_PATH = "fashion_annoy_index.ann"
-ANNOY_N_TREES = 50 # More trees = higher precision, slower build
-ANNOY_SEARCH_K_FACTOR = 100 # How many neighbors to retrieve initially (top_n * factor)
+ANNOY_N_TREES = 50
+ANNOY_SEARCH_K_FACTOR = 100
+
+# --- SQLAlchemy Setup ---
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class ClothingItemDB(Base):
+    """SQLAlchemy model for clothing_items table."""
+    __tablename__ = "clothing_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    gender = Column(String)
+    masterCategory = Column(String)
+    subCategory = Column(String)
+    articleType = Column(String)
+    baseColour = Column(String)
+    season = Column(String)
+    usage = Column(String)
+    productDisplayName = Column(String)
+    price = Column(Float) # New price attribute
+
+def init_db():
+    """Initialize the SQLite database and create tables if they don't exist."""
+    if not inspect(engine).has_table("clothing_items"):
+        Base.metadata.create_all(bind=engine)
+        logger.info("Created database tables.")
+    else:
+        logger.info("Database tables already exist.")
+
 
 # --- Models ---
 class Item(BaseModel):
@@ -51,11 +83,12 @@ class Item(BaseModel):
     season: str
     usage: str
     productDisplayName: str
+    price: Optional[float] = None # Price attribute in the model
     image_url: Optional[str] = None
 
 class OutfitRecommendation(BaseModel):
     recommendations: Dict[str, List[Item]]
-    metrics: Optional[Dict[str, float]] = None # To optionally return metrics
+    metrics: Optional[Dict[str, float]] = None
 
 class ProductPageResponse(BaseModel):
     product: Item
@@ -68,24 +101,23 @@ class SearchResult(BaseModel):
     images: List[Dict[str, Any]]
 
 # --- Database Module ---
-engine = create_engine(DATABASE_URL)
-
 def load_data() -> pd.DataFrame:
-    """Load data from the database."""
+    """Load data from the database using SQLAlchemy."""
     logger.info("Loading data from database...")
     start_time = time.time()
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT * FROM clothing_items"))
-        items = result.mappings().all()
-        df = pd.DataFrame(items)
-        df["id"] = df["id"].astype(str) # Keep IDs as strings internally for consistency
+    db: Session = SessionLocal()
+    try:
+        items = db.query(ClothingItemDB).all()
+        df = pd.DataFrame([item.__dict__ for item in items])
+        df["id"] = df["id"].astype(str) # Keep IDs as strings internally
+    finally:
+        db.close()
     logger.info(f"Data loaded in {time.time() - start_time:.2f} seconds. Shape: {df.shape}")
     return df
 
 def get_item(item_id: str) -> Optional[Dict[str, Any]]:
-    """Retrieve an item from the preloaded dataframe by string ID."""
+    """Retrieve an item from the database by string ID using SQLAlchemy."""
     try:
-        # Ensure ml_model.df is loaded
         if ml_model.df is None:
             logger.error("DataFrame not loaded.")
             raise HTTPException(status_code=500, detail="Server data not initialized")
@@ -93,20 +125,15 @@ def get_item(item_id: str) -> Optional[Dict[str, Any]]:
         item_series = ml_model.df[ml_model.df["id"] == item_id]
         if item_series.empty:
              logger.warning(f"Item with ID {item_id} not found in dataframe.")
-             return None # Return None instead of raising exception immediately
+             return None
 
         item = item_series.iloc[0].to_dict()
-        # Convert id back to int for the Pydantic model and add image URL
         item_id_int = int(item['id'])
         item["id"] = item_id_int
         item["image_url"] = f"/static/images/{item_id_int}.jpg"
-        # Verify image file exists
-        # if not os.path.exists(os.path.join(STATIC_DIR, "images", f"{item_id_int}.jpg")):
-        #     item["image_url"] = None # Or a placeholder image URL
         return item
     except Exception as e:
         logger.error(f"Error retrieving item {item_id}: {e}")
-        # Raise HTTPException here if item is absolutely required and not found
         raise HTTPException(status_code=404, detail=f"Item {item_id} retrieval error: {e}")
 
 
@@ -124,7 +151,7 @@ class MLModel:
         self.clip_model: Optional[CLIPModel] = None
         self.clip_processor: Optional[CLIPProcessor] = None
         self.chroma_client: Optional[chromadb.Client] = None
-        self.annoy_index: Optional[AnnoyIndex] = None # Add Annoy index
+        self.annoy_index: Optional[AnnoyIndex] = None
 
 ml_model = MLModel()
 
@@ -141,44 +168,38 @@ def preprocess_data(df: pd.DataFrame) -> tuple:
     """Preprocess the dataframe with enhanced features for ML model."""
     logger.info("Preprocessing data...")
     start_time = time.time()
-    # Fill missing values robustly
     columns_to_fill = ["baseColour", "productDisplayName", "articleType", "gender",
                        "masterCategory", "subCategory", "season", "usage"]
     for col in columns_to_fill:
         if col in df.columns:
-            # Determine the most frequent value or use "Unknown"
             mode_val = df[col].mode()
             fill_value = mode_val[0] if not mode_val.empty else "Unknown"
             df[col] = df[col].fillna(fill_value)
             logger.info(f"Filled NaNs in '{col}' with '{fill_value}'")
         else:
             logger.warning(f"Column '{col}' not found in DataFrame during preprocessing.")
-            df[col] = "Unknown" # Add the column if missing
+            df[col] = "Unknown"
 
     categorical_cols = ["gender", "masterCategory", "subCategory", "articleType",
                         "baseColour", "season", "usage"]
-    # Ensure all categorical columns exist
     categorical_cols = [col for col in categorical_cols if col in df.columns]
 
     onehot_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=True)
-    # Check if categorical columns exist before fitting
     if categorical_cols:
         onehot_features = onehot_encoder.fit_transform(df[categorical_cols])
         logger.info(f"OneHotEncoder fitted on columns: {categorical_cols}. Shape: {onehot_features.shape}")
     else:
         logger.warning("No categorical columns found for OneHotEncoding.")
-        onehot_features = None # Or a zero matrix of appropriate size if needed later
+        onehot_features = None
 
-    # TF-IDF Vectorization
     tfidf_vectorizer = TfidfVectorizer(stop_words="english", max_features=5000, ngram_range=(1, 2))
     if "productDisplayName" in df.columns:
         tfidf_features = tfidf_vectorizer.fit_transform(df["productDisplayName"])
         logger.info(f"TfidfVectorizer fitted. Shape: {tfidf_features.shape}")
     else:
         logger.warning("Column 'productDisplayName' not found for TfidfVectorizer.")
-        tfidf_features = None # Or a zero matrix
+        tfidf_features = None
 
-    # Combine features
     feature_list = [f for f in [onehot_features, tfidf_features] if f is not None]
     if not feature_list:
         logger.error("No features generated from OneHot or TF-IDF. Cannot proceed.")
@@ -186,11 +207,10 @@ def preprocess_data(df: pd.DataFrame) -> tuple:
     elif len(feature_list) == 1:
         combined_features = feature_list[0]
     else:
-        combined_features = hstack(feature_list).tocsr() # Ensure CSR format
+        combined_features = hstack(feature_list).tocsr()
 
     logger.info(f"Combined features created. Shape: {combined_features.shape}")
 
-    # Create ID to index mapping and vice-versa
     id_to_index = {str(row["id"]): idx for idx, row in df.iterrows()}
     index_to_id = {idx: str(row["id"]) for idx, row in df.iterrows()}
 
@@ -203,10 +223,10 @@ def build_annoy_index(features: csr_matrix, index_path: str):
     logger.info("Building Annoy index...")
     start_time = time.time()
     feature_dim = features.shape[1]
-    annoy_index = AnnoyIndex(feature_dim, 'angular') # Cosine distance
+    annoy_index = AnnoyIndex(feature_dim, 'angular')
 
     for i in range(features.shape[0]):
-        vector = features[i].toarray().flatten() # Annoy needs dense vectors
+        vector = features[i].toarray().flatten()
         annoy_index.add_item(i, vector)
         if (i + 1) % 5000 == 0:
             logger.info(f"Added {i+1}/{features.shape[0]} items to Annoy index.")
@@ -238,83 +258,60 @@ def optimized_mmr(
     candidate_indices: List[int],
     candidate_features: csr_matrix,
     top_n: int,
-    lambda_param: float = 0.5 # Default lambda balance relevance/diversity
+    lambda_param: float = 0.5
 ) -> List[int]:
-    """
-    Optimized MMR selection on a pre-filtered candidate set.
-
-    Args:
-        target_vector: Dense feature vector of the target item.
-        candidate_indices: List of *original* indices (from the full dataset)
-                           of the candidate items.
-        candidate_features: Sparse feature matrix (CSR) containing only the rows
-                            corresponding to candidate_indices.
-        top_n: Number of items to select.
-        lambda_param: Balance parameter (0=max diversity, 1=max relevance).
-
-    Returns:
-        List of *original* indices of the selected items.
-    """
+    """Optimized MMR selection on a pre-filtered candidate set."""
     if not candidate_indices or candidate_features.shape[0] == 0:
         return []
 
     num_candidates = candidate_features.shape[0]
-    # Ensure top_n is not greater than the number of candidates
     top_n = min(top_n, num_candidates)
 
-    # Calculate relevance (similarity to target)
-    # Ensure target_vector is 2D for cosine_similarity
     target_vector_2d = target_vector.reshape(1, -1)
     relevance_scores = cosine_similarity(target_vector_2d, candidate_features).flatten()
 
-    # Calculate intra-candidate similarity (for diversity)
-    # This is the most expensive step, but done on a smaller set
     diversity_matrix = cosine_similarity(candidate_features)
-    np.fill_diagonal(diversity_matrix, -np.inf) # Avoid selecting the same item
+    np.fill_diagonal(diversity_matrix, -np.inf)
 
-    selected_candidate_idxs = [] # Indices *within the candidate set*
+    selected_candidate_idxs = []
     remaining_candidate_idxs = list(range(num_candidates))
 
-    # Initial selection: highest relevance
     if num_candidates > 0:
         first_selection_idx_in_candidates = np.argmax(relevance_scores)
         selected_candidate_idxs.append(first_selection_idx_in_candidates)
         remaining_candidate_idxs.remove(first_selection_idx_in_candidates)
 
-    # Iterative MMR selection
     while len(selected_candidate_idxs) < top_n and remaining_candidate_idxs:
         mmr_scores = {}
         for idx_in_candidates in remaining_candidate_idxs:
             relevance = relevance_scores[idx_in_candidates]
-            # Max similarity to already selected items (min diversity)
-            if selected_candidate_idxs: # Avoid error if selected_candidate_idxs is empty initially
+            if selected_candidate_idxs:
                  max_similarity_to_selected = np.max(diversity_matrix[idx_in_candidates, selected_candidate_idxs])
             else:
-                 max_similarity_to_selected = -np.inf # Handle the case for the first item if not already selected
+                 max_similarity_to_selected = -np.inf
 
             mmr_score = lambda_param * relevance - (1 - lambda_param) * max_similarity_to_selected
             mmr_scores[idx_in_candidates] = mmr_score
 
-        if not mmr_scores: # Break if no more candidates to score
+        if not mmr_scores:
             break
 
         best_next_idx_in_candidates = max(mmr_scores, key=mmr_scores.get)
         selected_candidate_idxs.append(best_next_idx_in_candidates)
         remaining_candidate_idxs.remove(best_next_idx_in_candidates)
 
-    # Map selected candidate indices back to original indices
     final_selected_original_indices = [candidate_indices[i] for i in selected_candidate_idxs]
     return final_selected_original_indices
 
 def get_ml_recommendations(
-    target_features: csr_matrix, # Can be sparse or dense initially
-    target_article_type: str, # This IS the type we want recommendations FOR (e.g., "Ties", "Sneakers")
+    target_features: csr_matrix,
+    target_article_type: str,
     product_gender: str,
     target_color: Optional[str],
-    target_id: Optional[str] = None, # String ID
+    target_id: Optional[str] = None,
     top_n: int = 3,
-    lambda_mmr: float = 0.5 # MMR balance parameter
-) -> tuple[List[Dict], float, float, float]:
+    lambda_mmr: float = 0.5
+) -> tuple[List[Dict], float]:
     """Generate recommendations using Annoy and optimized MMR."""
     start_time = time.time()
     df = ml_model.df
@@ -323,11 +320,10 @@ def get_ml_recommendations(
 
     if annoy_index is None or all_features is None or df is None:
         logger.error("ML model components not initialized (Annoy, features, df).")
-        return [], 0.0, 0.0, 0.0
+        return [], 0.0
 
-    # 1. Find initial candidates using Annoy (based on original item features)
     target_vector_dense = target_features.toarray().flatten()
-    num_neighbors_to_fetch = min(ANNOY_SEARCH_K_FACTOR * top_n * 2, annoy_index.get_n_items()) # Fetch even more neighbors initially
+    num_neighbors_to_fetch = min(ANNOY_SEARCH_K_FACTOR * top_n * 2, annoy_index.get_n_items())
     annoy_start = time.time()
     initial_indices, _ = annoy_index.get_nns_by_vector(
         target_vector_dense, num_neighbors_to_fetch, search_k=-1, include_distances=True
@@ -336,51 +332,37 @@ def get_ml_recommendations(
 
     if not initial_indices:
         logger.warning(f"[get_ml_recommendations] Annoy returned no neighbors for {target_article_type}.")
-        return [], 0.0, 0.0, 0.0
+        return [], 0.0
 
-    # 2. Filter candidates based on rules
     filter_start = time.time()
 
-    # --- CORRECTED LOGIC for candidate_types ---
-    # Find the group the *requested* article type belongs to.
     target_group = next((group for group, types in ARTICLE_TYPE_GROUPS.items() if target_article_type in types), None)
 
     if target_group:
-        # If the requested type is in a group, consider all types within that group as valid candidates.
-        # This allows recommending, e.g., different types of "Shirts" when "Shirts" is requested.
         candidate_types = ARTICLE_TYPE_GROUPS.get(target_group, [target_article_type])
     else:
-        # If the requested type isn't explicitly grouped (like "Watches"), only look for that specific type.
         candidate_types = [target_article_type]
 
     logger.info(f"[get_ml_recommendations] Filtering for request type '{target_article_type}'. Using candidate article types: {candidate_types}")
-    # --- End CORRECTED LOGIC ---
 
+    candidate_df = df.iloc[initial_indices].copy()
 
-    # Fetch candidate details efficiently from DataFrame using .loc
-    candidate_df = df.iloc[initial_indices].copy() # Use .copy() to avoid SettingWithCopyWarning
-
-    # Apply filters sequentially and log counts
     initial_candidate_count = len(candidate_df)
     logger.debug(f"[get_ml_recommendations] Initial Annoy candidates for {target_article_type}: {initial_candidate_count}")
 
-    # Filter 1: Article Type
     type_mask = candidate_df["articleType"].isin(candidate_types)
     candidate_df = candidate_df[type_mask]
     logger.debug(f"[get_ml_recommendations] After type filter {candidate_types}: {len(candidate_df)}")
 
-    # Filter 2: Gender
     gender_mask = candidate_df["gender"].isin([product_gender, "Unisex"])
     candidate_df = candidate_df[gender_mask]
     logger.debug(f"[get_ml_recommendations] After gender filter {[product_gender, 'Unisex']}: {len(candidate_df)}")
 
-    # Filter 3: Exclude self
     if target_id:
         self_mask = (candidate_df["id"] != target_id)
         candidate_df = candidate_df[self_mask]
         logger.debug(f"[get_ml_recommendations] After self-exclusion filter ({target_id}): {len(candidate_df)}")
 
-    # Filter 4: Color Compatibility (applied after primary filters)
     if target_color and not candidate_df.empty:
          color_scores = candidate_df["baseColour"].apply(
              lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
@@ -390,20 +372,17 @@ def get_ml_recommendations(
          candidate_df = candidate_df[color_mask]
          logger.debug(f"[get_ml_recommendations] After color filter (threshold {min_color_threshold}): {len(candidate_df)}")
 
-    # Assign the finally filtered DataFrame
     filtered_candidate_df = candidate_df
 
     logger.info(f"[get_ml_recommendations] Filtering took {time.time() - filter_start:.4f}s. Candidates reduced from {initial_candidate_count} to {len(filtered_candidate_df)} for {target_article_type}")
 
     if filtered_candidate_df.empty:
         logger.warning(f"[get_ml_recommendations] No suitable candidates found after filtering for {target_article_type} (Gender: {product_gender}, Color: {target_color})")
-        return [], 0.0, 0.0, 0.0
+        return [], 0.0
 
-    # 3. Prepare features for MMR
     filtered_original_indices = filtered_candidate_df.index.tolist()
     candidate_features_sparse = all_features[filtered_original_indices]
 
-    # 4. Run Optimized MMR
     mmr_start = time.time()
     selected_original_indices = optimized_mmr(
         target_vector_dense,
@@ -416,58 +395,41 @@ def get_ml_recommendations(
 
     if not selected_original_indices:
         logger.warning(f"[get_ml_recommendations] MMR did not select any items for {target_article_type}.")
-        # Optional: Fallback to just taking top N similar items from filtered_candidate_df?
-        # fallback_indices = filtered_candidate_df.index.tolist()[:top_n]
-        # selected_original_indices = fallback_indices # Uncomment for fallback
-        # if not selected_original_indices: # Check again if fallback also empty
-        return [], 0.0, 0.0, 0.0
+        return [], 0.0
 
-    # 5. Format results and calculate metrics
-    # Ensure we only select from the indices MMR returned
     results_df = df.loc[selected_original_indices]
     results = []
     for _, item_row in results_df.iterrows():
          item_dict = item_row.to_dict()
-         # Ensure the articleType matches what we filtered for (sanity check)
          if item_dict.get('articleType') not in candidate_types:
              logger.warning(f"MMR selected item {item_dict.get('id')} with unexpected type '{item_dict.get('articleType')}' when filtering for {candidate_types}. Skipping.")
-             continue # Skip this item if its type is wrong
+             continue
 
          item_id_int = int(item_dict['id'])
-         item_dict['id'] = item_id_int # Convert ID to int for response model
+         item_dict['id'] = item_id_int
          item_dict['image_url'] = f"/static/images/{item_id_int}.jpg"
          results.append(item_dict)
 
 
-    # Calculate metrics on the *final* selected items
     novelty_score = inverse_popularity_score(results) if results else 0.0
-    diversity_score = intra_list_diversity(results) if results else 0.0
-    serendipity_score = 0.0
-    if target_id and results:
-        target_item_dict = get_item(target_id) # Fetch target item details
-        if target_item_dict:
-            serendipity_score = serendipity_measure(results, target_item_dict)
 
     total_time = time.time() - start_time
     logger.info(f"[get_ml_recommendations] Recommendation generation for {target_article_type} took {total_time:.4f}s. Found {len(results)} items.")
-    # logger.info(f"Metrics - Novelty: {novelty_score:.3f}, Diversity: {diversity_score:.3f}, Serendipity: {serendipity_score:.3f}")
 
-    return results, novelty_score, diversity_score, serendipity_score
+    return results, novelty_score
 
-# --- Utilities (Color, Constraints, Types - remain mostly unchanged) ---
+# --- Utilities ---
 def color_compatibility(color1: Optional[str], color2: Optional[str]) -> float:
     """Calculate color compatibility score using COLOR_COMPATIBILITY dictionary."""
     if not color1 or not color2 or color1 == "Unknown" or color2 == "Unknown":
-        return 0.1 # Small score for unknown compatibility
+        return 0.1
     if color1 == color2:
         return 1.0
-    # Check both directions for compatibility
     if color2 in COLOR_COMPATIBILITY.get(color1, []) or color1 in COLOR_COMPATIBILITY.get(color2, []):
         return 0.8
-    # Check for neutral compatibility
     neutrals = {"Black", "White", "Grey", "Beige", "Navy Blue", "Off White", "Grey Melange"}
     if color1 in neutrals or color2 in neutrals:
-        return 0.5 # Neutrals are generally compatible
+        return 0.5
     return 0.0
 
 def check_negative_constraints(target_item: dict, candidate_item: dict) -> bool:
@@ -476,43 +438,28 @@ def check_negative_constraints(target_item: dict, candidate_item: dict) -> bool:
         for group_name, types in ARTICLE_TYPE_GROUPS.items():
             if article_type in types:
                 return group_name
-        return None # Item type not found in any defined group
+        return None
 
     target_group = get_group(target_item["articleType"])
     candidate_group = get_group(candidate_item["articleType"])
 
-    # If either type isn't in a group, assume compatible for now
     if target_group is None or candidate_group is None:
-        # logger.debug(f"Assuming compatible: {target_item['articleType']} ({target_group}) and {candidate_item['articleType']} ({candidate_group}) - one or both not grouped.")
         return True
 
-    # Define groups that generally shouldn't be combined with themselves
     self_incompatible_groups = {"Tops", "Bottomwear", "Dresses", "Outerwear"}
-    accessory_groups = {"Accessories", "Jewellery", "Bags", "Makeup", "Skincare", "Bath and Body", "Haircare", "Fragrance", "Tech Accessories", "Home Decor", "Footwear", "Personal Care"} # Broadened accessory def
+    accessory_groups = {"Accessories", "Jewellery", "Bags", "Makeup", "Skincare", "Bath and Body", "Haircare", "Fragrance", "Tech Accessories", "Home Decor", "Footwear", "Personal Care"}
 
-    # Rule 1: Items from the same self-incompatible group are generally bad
     if target_group == candidate_group and target_group in self_incompatible_groups:
-        # logger.debug(f"Incompatible: Same self-incompatible group '{target_group}' for {target_item['id']} and {candidate_item['id']}")
         return False
 
-    # Rule 2: Allow combining accessories with anything (including other accessories)
-    # This simplifies logic, specific incompatible accessories could be added if needed
     if target_group in accessory_groups or candidate_group in accessory_groups:
          return True
 
-    # Rule 3: Specific incompatible group combinations (example)
-    # if target_group == "Dresses" and candidate_group == "Bottomwear": return False # Dress + Trousers? Usually no.
-    # if target_group == "Outerwear" and candidate_group == "Outerwear": return False # Two coats? Usually no.
-
-    # Rule 4: Usage mismatch (example: Formal + Flip Flops)
     if target_item.get("usage") == "Formal" and candidate_item.get("articleType") in ["Flip Flops", "Sports Sandals"]:
-         # logger.debug(f"Incompatible: Formal usage ({target_item['id']}) with casual footwear ({candidate_item['id']})")
          return False
     if candidate_item.get("usage") == "Formal" and target_item.get("articleType") in ["Flip Flops", "Sports Sandals"]:
-         # logger.debug(f"Incompatible: Formal usage ({candidate_item['id']}) with casual footwear ({target_item['id']})")
          return False
 
-    # If no negative rule hit, assume compatible
     return True
 
 
@@ -523,31 +470,27 @@ def get_compatible_types(article_type: str) -> List[str]:
 def get_accessory_types(usage: str, season: str) -> List[str]:
     """Get accessory types based on usage and season."""
     accessory_list = ACCESSORY_COMBINATIONS.get(usage, []) + SEASONAL_ACCESSORIES.get(season, [])
-    # Filter out duplicates and return
     return list(set(accessory_list))
 
-# --- Image Processing Utilities (Dominant Color, CLIP Prediction) ---
-# These remain largely the same, ensure MLModel components are accessed correctly
+# --- Image Processing Utilities ---
 def get_dominant_color(image: Image.Image) -> np.ndarray:
     """Get the dominant color from an image."""
     try:
         image = image.resize((100, 100))
         img_array = np.array(image).reshape(-1, 3)
-        # Handle cases with very few colors (e.g., pure white image)
         n_clusters = min(3, len(np.unique(img_array, axis=0)))
-        if n_clusters == 0: return np.array([0,0,0]) # Return black if no colors found
+        if n_clusters == 0: return np.array([0,0,0])
 
-        kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init=1).fit(img_array) # Set n_init explicitly
+        kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init=1).fit(img_array)
         counts = np.bincount(kmeans.labels_)
         return kmeans.cluster_centers_[np.argmax(counts)]
     except Exception as e:
         logger.error(f"Error in get_dominant_color: {e}")
-        return np.array([0, 0, 0]) # Default to black on error
+        return np.array([0, 0, 0])
 
 def find_closest_color(target_color: np.ndarray, color_names: List[str]) -> str:
     """Find the closest color name to the target RGB."""
-    # Consolidate color map definition
-    color_map = { # Add more colors or use a larger library if needed
+    color_map = {
         "Navy Blue": (0, 0, 128), "Blue": (0, 0, 255), "Black": (0, 0, 0),
         "Silver": (192, 192, 192), "Grey": (128, 128, 128), "Green": (0, 128, 0),
         "Purple": (128, 0, 128), "White": (255, 255, 255), "Beige": (245, 245, 220),
@@ -564,15 +507,14 @@ def find_closest_color(target_color: np.ndarray, color_names: List[str]) -> str:
         "Metallic": (170, 170, 170), "Mustard": (255, 219, 88), "Taupe": (128, 128, 105),
         "Nude": (238, 213, 183), "Mushroom Brown": (189, 183, 107), "Fluorescent Green": (127, 255, 0),
     }
-    # Filter available color names based on the provided list from the dataset
     available_colors = {name: rgb for name, rgb in color_map.items() if name in color_names}
-    if not available_colors: # Fallback if no known colors match dataset colors
+    if not available_colors:
         logger.warning("No matching colors found between color map and dataset unique colors.")
-        return "Black" # Or return the most frequent color from dataset?
+        return "Black"
 
     target_rgb = target_color.astype(int)
     min_dist = float("inf")
-    closest_color_name = list(available_colors.keys())[0] # Initialize with first available
+    closest_color_name = list(available_colors.keys())[0]
 
     for name, rgb in available_colors.items():
         dist = np.linalg.norm(np.array(rgb) - target_rgb)
@@ -585,12 +527,11 @@ def predict_attributes(image: Image.Image) -> dict:
     """Predict attributes from an image using CLIP."""
     if not ml_model.clip_model or not ml_model.clip_processor or ml_model.df is None:
         logger.error("CLIP model/processor or DataFrame not initialized for prediction.")
-        return {} # Return empty dict or raise error
+        return {}
 
     attributes = {}
     start_time = time.time()
     try:
-        # Prepare candidate labels from the dataset for robustness
         attribute_labels = {
             "gender": ml_model.df["gender"].unique().tolist(),
             "articleType": ml_model.df["articleType"].unique().tolist(),
@@ -599,33 +540,24 @@ def predict_attributes(image: Image.Image) -> dict:
             "masterCategory": ml_model.df["masterCategory"].unique().tolist(),
             "subCategory": ml_model.df["subCategory"].unique().tolist(),
         }
-        # Add fallback lists if dataset columns were missing/empty
         fallback_labels = {
              "gender": ["Men", "Women", "Unisex"],
              "season": ["Summer", "Winter", "Spring", "Fall"],
              "usage": ["Casual", "Formal", "Sports"],
-             # Add others as needed
         }
 
         for label_type, labels in attribute_labels.items():
-            # Use fallback if dataset labels are empty or insufficient
             if not labels or len(labels) < 2:
                 labels = fallback_labels.get(label_type, ["Unknown"])
                 logger.warning(f"Using fallback labels for CLIP prediction: {label_type}")
 
-            # Limit number of labels to avoid CLIP input size issues if necessary
-            # MAX_CLIP_LABELS = 70 # Example limit
-            # if len(labels) > MAX_CLIP_LABELS:
-            #     labels = sample(labels, MAX_CLIP_LABELS)
-
-            inputs = ml_model.clip_processor(text=labels, images=image, return_tensors="pt", padding=True, truncation=True) # Add truncation
+            inputs = ml_model.clip_processor(text=labels, images=image, return_tensors="pt", padding=True, truncation=True)
             outputs = ml_model.clip_model(**inputs)
             logits_per_image = outputs.logits_per_image
             probs = logits_per_image.softmax(dim=1)
             predicted_index = probs.argmax().item()
             attributes[label_type] = labels[predicted_index]
 
-        # Predict color separately
         dominant_color_rgb = get_dominant_color(image)
         unique_base_colors = ml_model.df["baseColour"].unique().tolist()
         attributes["baseColour"] = find_closest_color(dominant_color_rgb, unique_base_colors)
@@ -635,7 +567,7 @@ def predict_attributes(image: Image.Image) -> dict:
 
     except Exception as e:
         logger.error(f"Error during CLIP prediction: {e}", exc_info=True)
-        return {} # Return empty on error
+        return {}
 
 
 # --- Application Setup ---
@@ -646,9 +578,8 @@ async def lifespan(app: FastAPI):
     await startup_event()
     yield
     logger.info("Application shutdown.")
-    # Add cleanup if needed (e.g., close DB connections if not managed by context)
     if ml_model.annoy_index:
-        ml_model.annoy_index.unload() # Unload Annoy index
+        ml_model.annoy_index.unload()
         logger.info("Annoy index unloaded.")
 
 app = FastAPI(lifespan=lifespan)
@@ -661,6 +592,7 @@ async def startup_event():
     logger.info("Running startup event...")
     try:
         start_total = time.time()
+        init_db() # Initialize database on startup
         ml_model.df = load_data()
         if ml_model.df.empty:
              raise RuntimeError("Failed to load data, DataFrame is empty.")
@@ -674,39 +606,34 @@ async def startup_event():
 
         ml_model.feature_dim = ml_model.combined_features.shape[1]
 
-        # Attempt to load Annoy index, build if not found or dimension mismatch
         ml_model.annoy_index = load_annoy_index(ml_model.feature_dim, ANNOY_INDEX_PATH)
         if ml_model.annoy_index is None:
             logger.info("Building Annoy index from scratch...")
             ml_model.annoy_index, _ = build_annoy_index(ml_model.combined_features, ANNOY_INDEX_PATH)
-        # Simple check if loaded index has items (doesn't guarantee correct dimensions)
         elif ml_model.annoy_index.get_n_items() != ml_model.combined_features.shape[0]:
              logger.warning(f"Annoy index item count ({ml_model.annoy_index.get_n_items()}) "
                             f"mismatches feature count ({ml_model.combined_features.shape[0]}). Rebuilding.")
-             ml_model.annoy_index.unload() # Unload mismatched index
+             ml_model.annoy_index.unload()
              ml_model.annoy_index, _ = build_annoy_index(ml_model.combined_features, ANNOY_INDEX_PATH)
 
 
         ml_model.clip_model, ml_model.clip_processor = init_ml_model()
-        # Initialize ChromaDB client (consider error handling if path is invalid)
+
         try:
             ml_model.chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-            # Optionally check if collection exists
             try:
-                 ml_model.chroma_client.get_collection("fashion") # Check if collection exists
+                 ml_model.chroma_client.get_collection("fashion")
                  logger.info("ChromaDB client initialized and 'fashion' collection found.")
-            except Exception: # Catch specific ChromaDB exception if available
+            except Exception:
                  logger.warning("ChromaDB 'fashion' collection not found. Search endpoint might fail.")
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB client at {CHROMA_DB_PATH}: {e}", exc_info=True)
-            # Decide if this is critical - maybe allow server to start but log error?
-            # raise HTTPException(status_code=500, detail=f"ChromaDB init error: {e}") from e
+
 
         logger.info(f"Total startup time: {time.time() - start_total:.2f} seconds.")
 
     except Exception as e:
         logger.error(f"Error during application startup: {e}", exc_info=True)
-        # Re-raise to prevent application start if critical components fail
         raise HTTPException(status_code=500, detail=f"Critical error during startup: {e}") from e
 
 
@@ -717,7 +644,6 @@ async def product_page(item_id: str):
     logger.info(f"Received request for product page: {item_id}")
     start_time = time.time()
 
-    # Validate item_id format if necessary (e.g., ensure it's numeric)
     try:
         item_id_int = int(item_id)
         if item_id_int <= 0:
@@ -726,7 +652,7 @@ async def product_page(item_id: str):
         logger.error(f"Invalid item_id format: {item_id}")
         raise HTTPException(status_code=400, detail="Invalid item ID format.")
 
-    product = get_item(item_id) # Use string ID internally
+    product = get_item(item_id)
     if product is None:
         logger.error(f"Product {item_id} not found.")
         raise HTTPException(status_code=404, detail="Item not found")
@@ -738,41 +664,34 @@ async def product_page(item_id: str):
 
     target_features = ml_model.combined_features[target_idx]
     target_gender, target_usage, target_season = product["gender"], product["usage"], product["season"]
-    target_color, target_article_type = product.get("baseColour"), product["articleType"] # Use .get for color
+    target_color, target_article_type = product.get("baseColour"), product["articleType"]
 
     compatible_types_list = get_compatible_types(target_article_type)
     accessory_types = get_accessory_types(target_usage, target_season)
 
     recommendations_dict = {}
-    metrics_agg = {'novelty': [], 'diversity': [], 'serendipity': []}
+    metrics_agg = {'novelty': []}
 
-    recommendation_tasks = []
-    # Combine compatible types and accessories, ensuring uniqueness
     all_target_types = list(set(compatible_types_list + accessory_types))
 
     logger.info(f"Generating recommendations for types: {all_target_types}")
 
     for rec_type in all_target_types:
-        recs, novelty, diversity, serendipity = get_ml_recommendations(
+        recs, novelty = get_ml_recommendations(
             target_features,
             rec_type,
             target_gender,
             target_color,
             target_id=item_id,
-            top_n=5 # Fetch slightly more initially
+            top_n=5
         )
 
-        # Apply negative constraints check
-        filtered_recs = [item for item in recs if check_negative_constraints(product, item)][:3] # Limit to 3 after filtering
+        filtered_recs = [item for item in recs if check_negative_constraints(product, item)][:3]
 
         if filtered_recs:
             recommendations_dict[rec_type] = [Item(**item) for item in filtered_recs]
-            # Collect metrics only if recommendations were generated and kept
             metrics_agg['novelty'].append(novelty)
-            metrics_agg['diversity'].append(diversity)
-            metrics_agg['serendipity'].append(serendipity)
 
-    # Calculate average metrics
     avg_metrics = {k: np.mean(v) if v else 0.0 for k, v in metrics_agg.items()}
 
     logger.info(f"Product page request for {item_id} completed in {time.time() - start_time:.2f}s")
@@ -789,17 +708,14 @@ async def get_random_products(limit: int = 10):
         raise HTTPException(status_code=500, detail="Product data not available.")
 
     try:
-        # Ensure limit is reasonable
         limit = min(limit, len(ml_model.df))
-        limit = max(1, limit) # Ensure limit is at least 1
+        limit = max(1, limit)
 
         random_ids = sample(ml_model.df["id"].tolist(), limit)
-        # Use get_item to ensure consistent data retrieval and formatting
         products = [Item(**get_item(pid)) for pid in random_ids if get_item(pid) is not None]
 
-        if not products: # Handle case where get_item fails for all sampled IDs
+        if not products:
              logger.warning("Failed to retrieve details for randomly sampled products.")
-             # Option: retry sampling or return empty list?
              return ProductsResponse(products=[])
 
         return ProductsResponse(products=products)
@@ -816,35 +732,31 @@ async def recommend_from_image(file: UploadFile = File(...)):
 
     try:
         contents = await file.read()
-        # Basic validation for image size or type could be added here
         image = Image.open(BytesIO(contents)).convert("RGB")
 
-        # Predict attributes using CLIP
         attributes = predict_attributes(image)
         if not attributes:
             raise HTTPException(status_code=400, detail="Could not extract attributes from image.")
 
         logger.info(f"Predicted attributes: {attributes}")
 
-        # Synthesize features for the uploaded image
         synthetic_name = f"{attributes.get('gender', 'Unisex')}'s {attributes.get('baseColour', '')} {attributes.get('articleType', 'Fashion Item')}"
         categorical_data = [attributes.get(col, "Unknown") for col in ["gender", "masterCategory", "subCategory", "articleType", "baseColour", "season", "usage"]]
 
         try:
             onehot = ml_model.onehot_encoder.transform([categorical_data])
             tfidf = ml_model.tfidf_vectorizer.transform([synthetic_name])
-            target_features = hstack([onehot, tfidf]).tocsr() # Ensure sparse CSR
+            target_features = hstack([onehot, tfidf]).tocsr()
         except Exception as e:
             logger.error(f"Error transforming predicted attributes: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Error processing predicted attributes")
 
 
-        # Get recommendation parameters from predicted attributes
-        target_article_type = attributes.get("articleType", "Shirts") # Default if missing
+        target_article_type = attributes.get("articleType", "Shirts")
         target_gender = attributes.get("gender", "Unisex")
         target_usage = attributes.get("usage", "Casual")
         target_season = attributes.get("season", "Summer")
-        target_color = attributes.get("baseColour", None) # Allow None for color
+        target_color = attributes.get("baseColour", None)
 
 
         compatible_types_list = get_compatible_types(target_article_type)
@@ -852,23 +764,17 @@ async def recommend_from_image(file: UploadFile = File(...)):
         all_target_types = list(set(compatible_types_list + accessory_types))
 
         recommendations_dict = {}
-        metrics_agg = {'novelty': [], 'diversity': [], 'serendipity': []}
+        metrics_agg = {'novelty': []}
 
         logger.info(f"Generating recommendations from image for types: {all_target_types}")
 
         for rec_type in all_target_types:
-             # Note: No target_id for image uploads, serendipity won't be calculated relative to input
-             recs, novelty, diversity, _ = get_ml_recommendations(
+             recs, novelty = get_ml_recommendations(
                  target_features, rec_type, target_gender, target_color, target_id=None, top_n=3
              )
-             # Negative constraints check is trickier without a specific 'target_item' dict.
-             # We could synthesize a basic dict from attributes if needed, or skip it.
-             # Skipping constraint check for image uploads for simplicity here.
              if recs:
                  recommendations_dict[rec_type] = [Item(**item) for item in recs]
                  metrics_agg['novelty'].append(novelty)
-                 metrics_agg['diversity'].append(diversity)
-                 # Serendipity is 0 as there's no specific history item
 
         avg_metrics = {k: np.mean(v) if v else 0.0 for k, v in metrics_agg.items()}
 
@@ -876,7 +782,6 @@ async def recommend_from_image(file: UploadFile = File(...)):
         return OutfitRecommendation(recommendations=recommendations_dict, metrics=avg_metrics)
 
     except HTTPException as he:
-        # Re-raise HTTP exceptions directly
         raise he
     except Exception as e:
         logger.error(f"Error processing image recommendation: {e}", exc_info=True)
@@ -893,22 +798,19 @@ async def search(query: str = Form(...)):
 
     start_time = time.time()
     try:
-        # Ensure collection exists before querying
         try:
             fashion_collection = ml_model.chroma_client.get_collection(
                 "fashion",
-                embedding_function=OpenCLIPEmbeddingFunction(), # Use default or specify model if needed
-                # data_loader=ImageLoader() # DataLoader might not be needed for query if data is loaded
+                embedding_function=OpenCLIPEmbeddingFunction(),
             )
-        except Exception as e: # Catch specific ChromaDB exception if possible
+        except Exception as e:
             logger.error(f"Could not get ChromaDB collection 'fashion': {e}")
             raise HTTPException(status_code=500, detail="Search collection unavailable.")
 
         results = fashion_collection.query(
             query_texts=[query],
-            n_results=10, # Fetch more results initially
-            include=["metadatas", "distances", "uris"] # Request URIs if stored
-            # include=["documents", "metadatas", "distances"] # Default includes
+            n_results=10,
+            include=["metadatas", "distances", "uris"]
         )
         logger.info(f"ChromaDB query took {time.time() - start_time:.2f}s")
 
@@ -917,20 +819,19 @@ async def search(query: str = Form(...)):
             ids = results["ids"][0]
             distances = results["distances"][0]
             metadatas = results["metadatas"][0] if results.get("metadatas") else [{}] * len(ids)
-            uris = results.get("uris", [[]])[0] # Get URIs if available
+            uris = results.get("uris", [[]])[0]
 
             for i, item_id in enumerate(ids):
-                # Construct image URL from ID (assuming ID corresponds to filename)
                 try:
-                    img_filename = f"{int(item_id)}.jpg" # Assuming ID is numeric string
+                    img_filename = f"{int(item_id)}.jpg"
                     image_path = os.path.join(STATIC_DIR, "images", img_filename)
                     if os.path.exists(image_path):
                         image_url = f"/static/images/{img_filename}"
                         image_data.append({
-                            "id": item_id, # Keep original ID from Chroma
+                            "id": item_id,
                             "distance": distances[i],
                             "image_url": image_url,
-                            "metadata": metadatas[i] # Include metadata
+                            "metadata": metadatas[i]
                         })
                     else:
                         logger.warning(f"Image file not found for Chroma result ID {item_id}: {image_path}")
@@ -939,7 +840,6 @@ async def search(query: str = Form(...)):
                 except Exception as e:
                     logger.error(f"Error processing Chroma result {item_id}: {e}")
 
-        # Limit final results after checking file existence
         image_data = image_data[:5]
 
         return SearchResult(images=image_data)
@@ -955,33 +855,25 @@ def popularity_based_recommender(top_n=5):
     """Generates recommendations based on most popular article types."""
     if ml_model.df is None or 'articleType' not in ml_model.df.columns:
         return []
-    # Calculate popularity (value_counts is efficient)
     popularity = ml_model.df['articleType'].value_counts()
-    # Handle cases where there are fewer than top_n article types
     num_popular_types = min(top_n, len(popularity))
     if num_popular_types == 0:
         return []
     popular_types = popularity.index[:num_popular_types]
 
-    # Sample one item from each of the top N popular types for diversity
     recs = []
     available_items = ml_model.df[ml_model.df['articleType'].isin(popular_types)].copy()
     if available_items.empty:
         return []
 
-    # Group by article type and sample 1 from each group
-    # Use sample(frac=1).head(1) which handles empty groups better than n=1
     sampled_items = available_items.groupby('articleType').apply(lambda x: x.sample(frac=1).head(1)).reset_index(drop=True)
 
-    # If fewer than top_n items were sampled (due to few types), fill randomly
     remaining_needed = top_n - len(sampled_items)
     if remaining_needed > 0 and len(ml_model.df) > len(sampled_items):
-        # Exclude already selected items if possible
         exclude_ids = sampled_items['id'].tolist() if not sampled_items.empty else []
         additional_samples = ml_model.df[~ml_model.df['id'].isin(exclude_ids)].sample(min(remaining_needed, len(ml_model.df) - len(exclude_ids)))
         sampled_items = pd.concat([sampled_items, additional_samples], ignore_index=True)
 
-    # Convert to dict format
     return sampled_items.head(top_n).to_dict('records')
 
 
@@ -989,7 +881,6 @@ def random_recommender(top_n=5):
     """Generates random recommendations."""
     if ml_model.df is None or ml_model.df.empty:
         return []
-    # Ensure top_n is not larger than the dataset size
     actual_n = min(top_n, len(ml_model.df))
     if actual_n == 0:
         return []
@@ -1000,7 +891,6 @@ def inverse_popularity_score(recommendations: List[Dict]):
     if not recommendations or ml_model.df is None or 'articleType' not in ml_model.df.columns:
         return 0.0
     try:
-        # Pre-calculate value counts for efficiency
         type_counts = ml_model.df['articleType'].value_counts()
         total_items = len(ml_model.df)
         if total_items == 0: return 0.0
@@ -1009,11 +899,11 @@ def inverse_popularity_score(recommendations: List[Dict]):
         for item in recommendations:
             item_type = item.get('articleType')
             if item_type:
-                count = type_counts.get(item_type, 0) # Get count, default to 0 if type not found
+                count = type_counts.get(item_type, 0)
                 popularity = count / total_items
                 scores.append(1 - popularity)
             else:
-                scores.append(0.5) # Assign neutral score if articleType is missing
+                scores.append(0.5)
 
         return np.mean(scores) if scores else 0.0
     except Exception as e:
@@ -1021,138 +911,245 @@ def inverse_popularity_score(recommendations: List[Dict]):
         return 0.0
 
 
-def intra_list_diversity(recommendations: List[Dict]):
-    """Calculates diversity within the recommendation list using feature similarity."""
-    if not recommendations or len(recommendations) < 2 or ml_model.combined_features is None:
-        return 0.0 # Diversity is undefined/maximal for 0 or 1 item
+def get_true_relevances(target_features_sparse, recommended_items, id_to_index_map, all_features_sparse):
+    """Calculates true relevance (cosine similarity) for recommended items."""
+    indices = [id_to_index_map.get(str(item.get('id'))) for item in recommended_items
+               if str(item.get('id')) in id_to_index_map]
+
+    if not indices:
+        return np.array([])
+
+    valid_indices = [idx for idx in indices if idx is not None]
+    if not valid_indices:
+        return np.array([])
 
     try:
-        rec_ids = [str(item['id']) for item in recommendations if 'id' in item]
-        # Get indices, handling potential missing IDs
-        rec_indices = [ml_model.id_to_index.get(rid) for rid in rec_ids]
-        valid_indices = [idx for idx in rec_indices if idx is not None]
+        if hasattr(target_features_sparse, "toarray"):
+             target_features_dense_2d = target_features_sparse.toarray().reshape(1, -1)
+        else:
+             target_features_dense_2d = np.asarray(target_features_sparse).reshape(1, -1)
 
-        if len(valid_indices) < 2:
-             return 0.0 # Not enough valid items to calculate diversity
+        recommended_features = all_features_sparse[valid_indices]
 
-        # Extract features for valid items
-        features = ml_model.combined_features[valid_indices]
-        # Calculate pairwise cosine similarity
-        similarities = cosine_similarity(features)
-        # Extract upper triangle (excluding diagonal) to avoid duplicates and self-similarity
-        upper_triangle_indices = np.triu_indices_from(similarities, k=1)
-        if len(upper_triangle_indices[0]) == 0:
-            return 0.0 # Should not happen if len(valid_indices) >= 2, but safety check
-
-        mean_similarity = np.mean(similarities[upper_triangle_indices])
-        # Diversity is 1 - mean similarity
-        return 1.0 - mean_similarity
+        relevances = cosine_similarity(
+            target_features_dense_2d,
+            recommended_features
+        )[0]
+        return np.asarray(relevances)
     except Exception as e:
-        logger.error(f"Error calculating intra-list diversity: {e}", exc_info=True)
-        return 0.0
-
-
-def serendipity_measure(recommendations: List[Dict], user_history_item: Dict):
-    """Calculates serendipity as 1 - avg similarity to a user history item."""
-    if not recommendations or not user_history_item or ml_model.combined_features is None:
-        return 0.0
-
-    try:
-        history_id = str(user_history_item.get('id'))
-        history_idx = ml_model.id_to_index.get(history_id)
-        if history_idx is None:
-            logger.warning(f"History item ID {history_id} not found for serendipity.")
-            return 0.0
-
-        user_features = ml_model.combined_features[history_idx]
-
-        rec_ids = [str(item.get('id')) for item in recommendations]
-        rec_indices = [ml_model.id_to_index.get(rid) for rid in rec_ids]
-        valid_indices = [idx for idx in rec_indices if idx is not None]
-
-        if not valid_indices:
-            return 0.0
-
-        rec_features = ml_model.combined_features[valid_indices]
-
-        # Calculate similarity between user history and each recommendation
-        similarities = cosine_similarity(user_features, rec_features).flatten()
-
-        # Serendipity is often defined as how *unexpected* the items are.
-        # High similarity = less unexpected. So, 1 - avg_similarity.
-        avg_similarity = np.mean(similarities)
-        return 1.0 - avg_similarity
-
-    except Exception as e:
-        logger.error(f"Error calculating serendipity measure: {e}", exc_info=True)
-        return 0.0
-
+        logger.error(f"Error calculating relevances: {e}", exc_info=True)
+        return np.array([])
 
 @app.get("/api/evaluate")
 async def evaluate_recommendations():
-    """Evaluates ML recommender against baselines for a random item."""
+    """Evaluates ML recommender against baselines with NDCG metrics."""
     if ml_model.df is None or ml_model.combined_features is None:
         raise HTTPException(status_code=500, detail="Evaluation cannot run: Data or features not loaded.")
 
     try:
-        # Select a random product as the target
         target_product = ml_model.df.sample(1).iloc[0].to_dict()
-        target_id = str(target_product['id']) # Use string ID
-        target_idx = ml_model.id_to_index.get(target_id)
-
-        if target_idx is None:
-             raise HTTPException(status_code=500, detail="Failed to find index for sampled target product.")
-
+        target_id = str(target_product['id'])
+        target_idx = ml_model.id_to_index[target_id]
         target_features = ml_model.combined_features[target_idx]
-        target_article = target_product.get('articleType', 'Unknown')
-        target_gender = target_product.get('gender', 'Unisex')
-        target_color = target_product.get('baseColour')
 
-        logger.info(f"Evaluating recommendations for target item: {target_id} ({target_article}, {target_gender}, {target_color})")
-
-        # 1. Get ML Recommendations
-        ml_recs, ml_novelty, ml_diversity, ml_serendipity = get_ml_recommendations(
-            target_features, target_article, target_gender, target_color, target_id, top_n=5
+        ml_recs, ml_novelty = get_ml_recommendations(
+            target_features,
+            target_product['articleType'],
+            target_product['gender'],
+            target_product.get('baseColour'),
+            target_id,
+            top_n=5
         )
-        # Convert ML recs dicts to list of dicts for metric functions if needed
-        # ml_recs_list = [item for sublist in ml_recs.values() for item in sublist] if isinstance(ml_recs, dict) else ml_recs
 
-        # 2. Get Popularity Baseline Recommendations
         popularity_recs_list = popularity_based_recommender(top_n=5)
-        pop_novelty = inverse_popularity_score(popularity_recs_list)
-        pop_diversity = intra_list_diversity(popularity_recs_list)
-        pop_serendipity = serendipity_measure(popularity_recs_list, target_product)
-
-        # 3. Get Random Baseline Recommendations
         random_recs_list = random_recommender(top_n=5)
-        rand_novelty = inverse_popularity_score(random_recs_list)
-        rand_diversity = intra_list_diversity(random_recs_list)
-        rand_serendipity = serendipity_measure(random_recs_list, target_product)
+
+        def get_scores(recommendations):
+            indices = [ml_model.id_to_index[str(item['id'])] for item in recommendations]
+            return cosine_similarity(
+                target_features.toarray(),
+                ml_model.combined_features[indices].toarray()
+            )[0] if indices else []
+
+        try:
+            ml_relevances = get_scores(ml_recs)
+            ml_scores = ml_relevances
+        except Exception as e:
+            logger.error(f"Error calculating ML relevances: {e}")
+            ml_relevances = []
+
+        if len(ml_relevances) >= 5:
+            ml_ndcg = ndcg_score(
+                np.asarray([ml_relevances]),
+                np.asarray([ml_scores]),
+                k=5
+            )
+        else:
+            ml_ndcg = 0.0
+
+        pop_relevances = get_scores(popularity_recs_list)
+        pop_scores = [ml_model.df['articleType'].value_counts()[item['articleType']]
+                     for item in popularity_recs_list]
+        pop_ndcg = ndcg_score([pop_relevances], [pop_scores], k=5) if pop_relevances is not None else 0.0
+
+        rand_relevances = get_scores(random_recs_list)
+        rand_scores = np.random.rand(len(rand_relevances))
+        rand_ndcg = ndcg_score([rand_relevances], [rand_scores], k=5) if rand_relevances is not None else 0.0
 
         return {
-            "target_item_id": target_id,
+            "target_item_id": int(target_id),
             "ML Model": {
                 "Novelty": ml_novelty,
-                "Diversity": ml_diversity,
-                "Serendipity": ml_serendipity,
-                "recommendations": [item['id'] for item in ml_recs] # Show IDs for context
+                "NDCG@5": ml_ndcg,
+                "recommendations": [item['id'] for item in ml_recs]
             },
             "Popularity Baseline": {
-                "Novelty": pop_novelty,
-                "Diversity": pop_diversity,
-                "Serendipity": pop_serendipity,
-                 "recommendations": [item['id'] for item in popularity_recs_list]
+                "Novelty": inverse_popularity_score(popularity_recs_list),
+                "NDCG@5": pop_ndcg,
+                "recommendations": [item['id'] for item in popularity_recs_list]
             },
             "Random Baseline": {
-                "Novelty": rand_novelty,
-                "Diversity": rand_diversity,
-                "Serendipity": rand_serendipity,
-                 "recommendations": [item['id'] for item in random_recs_list]
+                "Novelty": inverse_popularity_score(random_recs_list),
+                "NDCG@5": rand_ndcg,
+                "recommendations": [item['id'] for item in random_recs_list]
             }
         }
+
     except Exception as e:
-         logger.error(f"Error during evaluation: {e}", exc_info=True)
-         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+        logger.error(f"Evaluation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/evaluate-all")
+async def evaluate_all_products(sample_size: int = 1000, k: int = 5):
+    """Evaluates ML recommender against baselines across many products with corrected NDCG."""
+    if ml_model.df is None or ml_model.combined_features is None:
+        raise HTTPException(status_code=500, detail="Evaluation cannot run: Data or features not loaded.")
+
+    try:
+        if sample_size <= 0 or sample_size > len(ml_model.df):
+             eval_sample = ml_model.df
+             actual_sample_size = len(ml_model.df)
+        else:
+            actual_sample_size = sample_size
+            eval_sample = ml_model.df.sample(n=actual_sample_size, random_state=42)
+
+        logger.info(f"Starting corrected evaluation on {len(eval_sample)} products (k={k})...")
+        start_time = time.time()
+
+        metrics = {
+            'ml_model': {'ndcg': [], 'novelty': []},
+            'popularity': {'ndcg': [], 'novelty': []},
+            'random': {'ndcg': [], 'novelty': []},
+        }
+
+        processed_count = 0
+        for _, target_product_series in eval_sample.iterrows():
+            target_product = target_product_series.to_dict()
+            try:
+                target_id = str(target_product['id'])
+                if target_id not in ml_model.id_to_index:
+                     logger.warning(f"Skipping product {target_id}: Not found in id_to_index map.")
+                     continue
+
+                target_idx = ml_model.id_to_index[target_id]
+                target_features = ml_model.combined_features[target_idx]
+
+                ml_recs, ml_novelty = get_ml_recommendations(
+                    target_features,
+                    target_product['articleType'],
+                    target_product['gender'],
+                    target_product.get('baseColour'),
+                    target_id,
+                    top_n=k
+                )
+
+                ml_true_relevances = get_true_relevances(
+                    target_features, ml_recs, ml_model.id_to_index, ml_model.combined_features
+                )
+
+                num_ml_recs = len(ml_recs)
+                ml_scores_by_rank = np.arange(num_ml_recs, 0, -1)
+
+                if ml_true_relevances.size > 0 and ml_scores_by_rank.size > 0:
+                     ml_ndcg = ndcg_score([ml_true_relevances], [ml_scores_by_rank], k=k)
+                else:
+                     ml_ndcg = 0.0
+
+                metrics['ml_model']['ndcg'].append(ml_ndcg)
+                metrics['ml_model']['novelty'].append(ml_novelty)
+
+                popularity_recs = popularity_based_recommender(top_n=k)
+                pop_true_relevances = get_true_relevances(
+                    target_features, popularity_recs, ml_model.id_to_index, ml_model.combined_features
+                )
+                num_pop_recs = len(popularity_recs)
+                pop_scores_by_rank = np.arange(num_pop_recs, 0, -1)
+
+                if pop_true_relevances.size > 0 and pop_scores_by_rank.size > 0:
+                     pop_ndcg = ndcg_score([pop_true_relevances], [pop_scores_by_rank], k=k)
+                else:
+                     pop_ndcg = 0.0
+
+                metrics['popularity']['ndcg'].append(pop_ndcg)
+                metrics['popularity']['novelty'].append(inverse_popularity_score(popularity_recs))
+
+                random_recs = random_recommender(top_n=k)
+                rand_true_relevances = get_true_relevances(
+                    target_features, random_recs, ml_model.id_to_index, ml_model.combined_features
+                )
+                num_rand_recs = len(random_recs)
+                rand_scores_by_rank = np.arange(num_rand_recs, 0, -1)
+
+                if rand_true_relevances.size > 0 and rand_scores_by_rank.size > 0:
+                     rand_ndcg = ndcg_score([rand_true_relevances], [rand_scores_by_rank], k=k)
+                else:
+                     rand_ndcg = 0.0
+
+                metrics['random']['ndcg'].append(rand_ndcg)
+                metrics['random']['novelty'].append(inverse_popularity_score(random_recs))
+
+                processed_count += 1
+                if processed_count % 100 == 0:
+                    logger.info(f"Processed {processed_count}/{actual_sample_size} products...")
+
+            except Exception as e:
+                logger.warning(f"Error evaluating product {target_product.get('id', 'Unknown')}: {str(e)}", exc_info=False)
+                continue
+
+        results = {
+            "num_products_evaluated": processed_count,
+            "evaluation_time_seconds": time.time() - start_time,
+            "metrics": {},
+            "improvement_over_popularity": {}
+        }
+
+        for model_name in ['ml_model', 'popularity', 'random']:
+            results["metrics"][model_name] = {
+                f"ndcg@{k}_mean": np.mean(metrics[model_name]['ndcg']) if metrics[model_name]['ndcg'] else 0.0,
+                f"ndcg@{k}_std": np.std(metrics[model_name]['ndcg']) if metrics[model_name]['ndcg'] else 0.0,
+                "novelty_mean": np.mean(metrics[model_name]['novelty']) if metrics[model_name]['novelty'] else 0.0,
+            }
+            if model_name == 'popularity': results["metrics"]["popularity_baseline"] = results["metrics"].pop("popularity")
+            if model_name == 'random': results["metrics"]["random_baseline"] = results["metrics"].pop("random")
+
+
+        pop_ndcg_mean = results["metrics"]["popularity_baseline"][f"ndcg@{k}_mean"]
+        pop_novelty_mean = results["metrics"]["popularity_baseline"]["novelty_mean"]
+        ml_ndcg_mean = results["metrics"]["ml_model"][f"ndcg@{k}_mean"]
+        ml_novelty_mean = results["metrics"]["ml_model"]["novelty_mean"]
+
+
+        results["improvement_over_popularity"] = {
+            f"ndcg@{k}": (ml_ndcg_mean - pop_ndcg_mean) / pop_ndcg_mean if pop_ndcg_mean > 1e-9 else float('inf'),
+            "novelty": (ml_novelty_mean - pop_novelty_mean) / pop_novelty_mean if pop_novelty_mean > 1e-9 else float('inf'),
+        }
+
+        logger.info(f"Corrected evaluation completed in {results['evaluation_time_seconds']:.2f} seconds")
+        return results
+
+    except Exception as e:
+        logger.error(f"Full evaluation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
 
 # --- Optional: Add root endpoint or health check ---
@@ -1162,7 +1159,6 @@ async def read_root():
 
 @app.get("/health")
 async def health_check():
-    # Basic check: is the DataFrame loaded?
     if ml_model.df is not None and not ml_model.df.empty:
         return {"status": "ok", "message": f"Data loaded ({len(ml_model.df)} items)"}
     else:
