@@ -17,16 +17,22 @@ const PORT = process.env.PORT || 3001;
 const SECRET = process.env.SECRET || "secret";
 
 // Database setup with Sequelize
-const sequelize = new Sequelize(
-  process.env.NODE_ENV === 'test' ? process.env.MYSQL_TEST_DATABASE || 'test_db' : process.env.MYSQL_DATABASE || "database",
-  process.env.MYSQL_USER || "user",
-  process.env.MYSQL_PASSWORD || "password",
-  {
-    host: process.env.MYSQL_HOST || "localhost",
-    dialect: "mysql",
-    logging: process.env.NODE_ENV === "test" ? false : console.log,
-  }
-);
+// const sequelize = new Sequelize(
+//   process.env.NODE_ENV === 'test' ? process.env.MYSQL_TEST_DATABASE || 'test_db' : process.env.MYSQL_DATABASE || "database",
+//   process.env.MYSQL_USER || "user",
+//   process.env.MYSQL_PASSWORD || "password",
+//   {
+//     host: process.env.MYSQL_HOST || "localhost",
+//     dialect: "mysql",
+//     logging: process.env.NODE_ENV === "test" ? false : console.log,
+//   }
+// );
+const sequelize = new Sequelize({
+  dialect: "sqlite",
+  storage: process.env.SQLITE_DB_PATH || "user.db",
+  logging: process.env.NODE_ENV === "test" ? false : console.log,
+});
+
 
 // Define models
 const User = sequelize.define("User", {

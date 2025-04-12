@@ -6,19 +6,14 @@ const readline = require("readline");
 const bcrypt = require("bcrypt");
 const { Sequelize, DataTypes } = require("sequelize");
 
-// Initialize database connection (same as your app)
-const sequelize = new Sequelize(
-  process.env.MYSQL_DATABASE || "database",
-  process.env.MYSQL_USER || "user",
-  process.env.MYSQL_PASSWORD || "password",
-  {
-    host: process.env.MYSQL_HOST || "localhost",
-    dialect: "mysql",
-    logging: false,
-  }
-);
+// SQLite-based Sequelize initialization
+const sequelize = new Sequelize({
+  dialect: "sqlite",
+  storage: process.env.SQLITE_DB_PATH || "user.db",
+  logging: false,
+});
 
-// Define Administrator model (same as your app)
+// Define Administrator model
 const Administrator = sequelize.define("Administrator", {
   username: {
     type: DataTypes.STRING,
@@ -53,30 +48,24 @@ const Administrator = sequelize.define("Administrator", {
   },
 });
 
-// Create readline interface for user input
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
-// Helper function to prompt for input
 function askQuestion(question, hidden = false) {
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
       resolve(answer.trim());
     });
 
-    // For password inputs, hide the typing
     if (hidden) {
       const stdin = process.stdin;
       stdin.setRawMode(true);
       stdin.resume();
       stdin.setEncoding("utf8");
       stdin.on("data", (key) => {
-        if (key === "\u0003") {
-          // Ctrl+C
-          process.exit();
-        }
+        if (key === "\u0003") process.exit(); // Ctrl+C
       });
     }
   });
@@ -86,14 +75,11 @@ async function main() {
   try {
     console.log("\nAdmin Account Creation Utility\n");
 
-    // Connect to database
     await sequelize.authenticate();
     console.log("Connected to database successfully.");
 
-    // Sync models
     await Administrator.sync({ alter: true });
 
-    // Get admin details
     const username = await askQuestion("Enter username (3-255 chars): ");
     if (username.length < 3 || username.length > 255) {
       throw new Error("Username must be between 3 and 255 characters");
@@ -105,35 +91,25 @@ async function main() {
     }
 
     const password = await askQuestion("Enter password: ", true);
-    if (password.length < 8) {
-      throw new Error("Password must be at least 8 characters");
-    }
+    if (password.length < 8) throw new Error("Password must be at least 8 characters");
 
     const confirmPassword = await askQuestion("Confirm password: ", true);
-    if (password !== confirmPassword) {
-      throw new Error("Passwords do not match");
-    }
+    if (password !== confirmPassword) throw new Error("Passwords do not match");
 
-    const securityQuestion = await askQuestion(
-      "Enter security question (min 10 chars): "
-    );
+    const securityQuestion = await askQuestion("Enter security question (min 10 chars): ");
     if (securityQuestion.length < 10) {
       throw new Error("Security question must be at least 10 characters");
     }
 
-    const securityAnswer = await askQuestion(
-      "Enter answer to security question: "
-    );
+    const securityAnswer = await askQuestion("Enter answer to security question: ");
     if (securityAnswer.length < 3) {
       throw new Error("Security answer must be at least 3 characters");
     }
 
-    // Hash password and security answer
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
     const securityAnswerHash = await bcrypt.hash(securityAnswer, saltRounds);
 
-    // Create admin record
     await Administrator.create({
       username,
       email,

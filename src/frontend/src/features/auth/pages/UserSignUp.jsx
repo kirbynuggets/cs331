@@ -1,178 +1,3 @@
-// import { useState } from 'react';
-// import Avatar from '@mui/material/Avatar';
-// import Button from '@mui/material/Button';
-// import TextField from '@mui/material/TextField';
-// import Link from '@mui/material/Link';
-// import Paper from '@mui/material/Paper';
-// import Box from '@mui/material/Box';
-// import Grid from '@mui/material/Grid';
-// import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-// import Typography from '@mui/material/Typography';
-// import { useNavigate } from 'react-router-dom';
-// import authService from '../services/authService';
-// import ErrorMessage from '../../../components/common/ErrorMessage';
-// import CustomThemeProvider from '../../../components/common/CustomThemeProvider';
-
-// function Copyright(props) {
-//   return (
-//     <Typography variant="body2" color="text.secondary" align="center" {...props}>
-//       {'Copyright © '}
-//       <Link color="inherit" href="/">
-//         Fashion E-Commerce
-//       </Link>{' '}
-//       {new Date().getFullYear()}
-//       {'.'}
-//     </Typography>
-//   );
-// }
-
-// export default function UserSignUp() {
-//   const navigate = useNavigate();
-//   const [errorMessage, setErrorMessage] = useState("");
-//   const handleSubmit = (event) => {
-//     event.preventDefault();
-//     const data = new FormData(event.currentTarget);
-//     const username = data.get('username');
-//     const email = data.get('email');
-//     const password = data.get('password');
-//     if (!username || !password || !email) {
-//       setErrorMessage("Missing username or password or email");
-//       setTimeout(() => {
-//         setErrorMessage("");
-//       }, 5000);
-//       return;
-//     }
-//     const credentials = {
-//       username,
-//       email,
-//       password
-//     }
-//     authService
-//       .signupUser(credentials)
-//       .then((user) => {
-//         alert(`Signup successful! Welcome, ${user.username}`);
-//         navigate("/signin", { replace: true });
-//       })
-//       .catch((error) => {
-//         if (error.response.data.error) {
-//           setErrorMessage(error.response.data.error);
-//           setTimeout(() => {
-//             setErrorMessage("");
-//           }, 5000);
-//         } else {
-//           setErrorMessage(
-//             "Error logging in : Please check the console for more details"
-//           );
-//           console.error(error);
-//           setTimeout(() => {
-//             setErrorMessage("");
-//           }, 5000);
-//         }
-//       });
-//     console.log({
-//       username: data.get('username'),
-//       email: data.get('email'),
-//       password: data.get('password'),
-//     });
-//   };
-
-//   return (
-//     <CustomThemeProvider>
-//       <ErrorMessage errorMessage={errorMessage} />
-//       <Grid container component="main" sx={{ height: '100vh' }}>
-//         <Grid
-//           item
-//           xs={false}
-//           sm={4}
-//           md={7}
-//           sx={{
-//             backgroundImage: 'url(https://unsplash.it/1920/1080?random)',
-//             backgroundRepeat: 'no-repeat',
-//             backgroundColor: (t) =>
-//               t.palette.mode === 'light' ? t.palette.grey[50] : t.palette.grey[900],
-//             backgroundSize: 'cover',
-//             backgroundPosition: 'center',
-//           }}
-//         />
-//         <Grid item xs={12} sm={8} md={5} component={Paper} elevation={6} square>
-//           <Box
-//             sx={{
-//               my: 8,
-//               mx: 4,
-//               display: 'flex',
-//               flexDirection: 'column',
-//               alignItems: 'center',
-//             }}
-//           >
-//             <Avatar sx={{ m: 1, bgcolor: 'secondary.main' }}>
-//               <LockOutlinedIcon />
-//             </Avatar>
-//             <Typography component="h1" variant="h5">
-//               Sign up
-//             </Typography>
-//             <Box component="form" noValidate onSubmit={handleSubmit} sx={{ mt: 1 }}>
-//               <TextField
-//                 margin="normal"
-//                 required
-//                 fullWidth
-//                 id="username"
-//                 label="Username"
-//                 name="username"
-//                 autoComplete="username"
-//                 autoFocus
-//               />
-//               <TextField
-//                 margin="normal"
-//                 required
-//                 fullWidth
-//                 id="email"
-//                 label="Email Address"
-//                 name="email"
-//                 autoComplete="email"
-//                 autoFocus
-//               />
-//               <TextField
-//                 margin="normal"
-//                 required
-//                 fullWidth
-//                 name="password"
-//                 label="Password"
-//                 type="password"
-//                 id="password"
-//                 autoComplete="current-password"
-//               />
-//               <Button
-//                 type="submit"
-//                 fullWidth
-//                 variant="contained"
-//                 sx={{ mt: 3, mb: 2 }}
-//               >
-//                 Sign Up
-//               </Button>
-//               <Button
-//                 fullWidth
-//                 variant="outlined"
-//                 sx={{ mt: 3, mb: 2 }}
-//                 onClick={() => navigate('/admin/signin')}
-//               >
-//                 Sign In as Admin
-//               </Button>
-//               <Grid container>
-//                 <Grid item>
-//                   <Link href="/" variant="body2">
-//                     {"Already have an account? Sign In"}
-//                   </Link>
-//                 </Grid>
-//               </Grid>
-//               <Copyright sx={{ mt: 5 }} />
-//             </Box>
-//           </Box>
-//         </Grid>
-//       </Grid>
-//     </CustomThemeProvider>
-//   );
-// }
-
 import { useState } from 'react';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
@@ -208,22 +33,29 @@ function Copyright(props) {
 }
 
 export default function UserSignUp() {
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // Assuming setup with react-router
   const [errorMessage, setErrorMessage] = useState("");
-  
+
   const handleSubmit = (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const username = data.get('username');
     const email = data.get('email');
     const password = data.get('password');
+    const termsAccepted = data.get('termsAccepted'); // Check if terms checkbox is checked
+
     if (!username || !password || !email) {
-      setErrorMessage("Missing username or password or email");
-      setTimeout(() => {
-        setErrorMessage("");
-      }, 5000);
+      setErrorMessage("Missing username, email, or password");
+      setTimeout(() => setErrorMessage(""), 5000);
       return;
     }
+    // Simple check for the checkbox - improve validation as needed
+    // if (!termsAccepted) {
+    //     setErrorMessage("You must accept the Terms of Service and Privacy Policy.");
+    //     setTimeout(() => setErrorMessage(""), 5000);
+    //     return;
+    // }
+
     const credentials = {
       username,
       email,
@@ -232,70 +64,68 @@ export default function UserSignUp() {
     authService
       .signupUser(credentials)
       .then((user) => {
-        alert(`Signup successful! Welcome, ${user.username}`);
+        alert(`Signup successful! Welcome, ${user.username}`); // Consider a more user-friendly notification (e.g., snackbar)
         navigate("/signin", { replace: true });
+        console.log("Signup successful, navigating to signin...");
       })
       .catch((error) => {
         if (error.response?.data?.error) {
           setErrorMessage(error.response.data.error);
-          setTimeout(() => {
-            setErrorMessage("");
-          }, 5000);
         } else {
           setErrorMessage(
             "Error signing up: Please check your information and try again"
           );
           console.error(error);
-          setTimeout(() => {
-            setErrorMessage("");
-          }, 5000);
         }
+        setTimeout(() => setErrorMessage(""), 5000);
       });
   };
 
   return (
     <CustomThemeProvider>
       <ErrorMessage errorMessage={errorMessage} />
-      <Grid container component="main" sx={{ height: '100vh' }}>
+      {/* Use theme background color for the main container */}
+      <Grid container component="main" sx={{ height: '100vh', bgcolor: 'background.default' }}>
+        {/* Left Grid Item (Image) */}
         <Grid
           item
-          xs={false}
-          sm={4}
+          xs={false} // Hidden on extra-small screens
+          sm={4}     // Takes up space on small screens and up
           md={7}
           sx={{
             background: 'linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=2070&auto=format&fit=crop)',
             backgroundRepeat: 'no-repeat',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            display: 'flex',
+            display: { xs: 'none', sm: 'flex' }, // Ensure it's displayed correctly on sm+
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            color: 'white',
+            color: 'white', // Text color against dark background image
             padding: 4
           }}
         >
           <Box
-            sx={{ 
+            sx={{
               textAlign: 'center',
               maxWidth: '600px'
             }}
           >
-            <Typography 
-              component="h1" 
-              variant="h2" 
-              sx={{ 
-                fontWeight: 700, 
+            <Typography
+              component="h1"
+              variant="h2"
+              sx={{
+                fontWeight: 700,
                 marginBottom: 2,
                 letterSpacing: '-0.5px'
               }}
             >
               LUXE
             </Typography>
-            <Typography 
-              variant="h5" 
-              sx={{ 
-                fontWeight: 300, 
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 300,
                 marginBottom: 4,
                 letterSpacing: '3px'
               }}
@@ -308,44 +138,54 @@ export default function UserSignUp() {
             </Typography>
           </Box>
         </Grid>
-        <Grid 
-          item 
-          xs={12} 
-          sm={8} 
-          md={5} 
-          component={Paper} 
-          elevation={0}
+
+        {/* Right Grid Item (Form) */}
+        <Grid
+          item
+          xs={12} // Full width on extra-small
+          sm={8}  // Takes remaining width on small+
+          md={5}
+          component={Paper}
+          elevation={0} // No shadow
+          square // Sharp corners
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            bgcolor: '#FFFFFF'
+            justifyContent: 'center', // Vertical centering
+            alignItems: 'center',     // Horizontal centering <<-- ADDED
+            flexGrow: 1,              // Fill available space <<-- ADDED
+            // bgcolor: '#FFFFFF'     // REMOVED - Use theme's paper background
           }}
         >
+          {/* Inner Box containing form */}
           <Box
             sx={{
-              px: { xs: 3, sm: 6, md: 8 },
-              py: { xs: 6, sm: 8 },
+              px: { xs: 3, sm: 6, md: 8 }, // Padding
+              py: { xs: 4, sm: 6 }, // Adjusted vertical padding slightly
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              maxWidth: '450px',
-              mx: 'auto',
-              width: '100%'
+              alignItems: 'center', // Center content (title, form) inside this Box
+              maxWidth: '450px', // Max width for the form area
+              // mx: 'auto',      // REMOVED - Parent Grid handles centering
+              // width: '100%'    // REMOVED - Let it size naturally
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 5 }}>
+            {/* Title */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, color: 'text.primary' }}> {/* Use theme text color */}
               <ShoppingBagOutlinedIcon sx={{ fontSize: 28, color: 'primary.main', mr: 1 }} />
               <Typography component="h1" variant="h5" sx={{ fontWeight: 600 }}>
                 Create Account
               </Typography>
             </Box>
-            
-            <Typography component="p" variant="body1" sx={{ mb: 4, color: 'text.secondary', textAlign: 'center' }}>
+
+            {/* Subtitle */}
+            <Typography component="p" variant="body1" sx={{ mb: 4, color: 'text.secondary', textAlign: 'center' }}> {/* Use theme text color */}
               Sign up to start exploring our premium fashion collections.
             </Typography>
-            
-            <Box component="form" noValidate onSubmit={handleSubmit} sx={{ width: '100%' }}>
+
+            {/* Form */}
+            <Box component="form" noValidate onSubmit={handleSubmit} sx={{ width: '100%' }}> {/* Needs width 100% */}
+              {/* Username */}
               <TextField
                 margin="normal"
                 required
@@ -359,17 +199,13 @@ export default function UserSignUp() {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <PersonOutlineOutlinedIcon sx={{ color: 'text.secondary' }} />
+                      <PersonOutlineOutlinedIcon sx={{ color: 'text.secondary' }} /> {/* Theme color */}
                     </InputAdornment>
                   ),
                 }}
-                sx={{ 
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  }
-                }}
+                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} // Adjusted margin
               />
+              {/* Email */}
               <TextField
                 margin="normal"
                 required
@@ -382,17 +218,13 @@ export default function UserSignUp() {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <EmailOutlinedIcon sx={{ color: 'text.secondary' }} />
+                      <EmailOutlinedIcon sx={{ color: 'text.secondary' }} /> {/* Theme color */}
                     </InputAdornment>
                   ),
                 }}
-                sx={{ 
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  }
-                }}
+                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} // Adjusted margin
               />
+              {/* Password */}
               <TextField
                 margin="normal"
                 required
@@ -401,70 +233,70 @@ export default function UserSignUp() {
                 label="Password"
                 type="password"
                 id="password"
-                autoComplete="new-password"
+                autoComplete="new-password" // Correct autocomplete for signup
                 variant="outlined"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <LockOutlinedIcon sx={{ color: 'text.secondary' }} />
+                      <LockOutlinedIcon sx={{ color: 'text.secondary' }} /> {/* Theme color */}
                     </InputAdornment>
                   ),
                 }}
-                sx={{ 
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                  }
-                }}
+                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} // Adjusted margin
               />
-              
-              <FormControlLabel
-                control={<Checkbox value="termsAccepted" color="primary" size="small" required />}
+
+              {/* Terms Checkbox */}
+              {/* <FormControlLabel
+                control={<Checkbox name="termsAccepted" value="agree" color="primary" size="small" required />} // Added name
                 label={
-                  <Typography variant="body2">
+                  // Label text color adapts automatically
+                  <Typography variant="body2" color="text.secondary">
                     I agree to the{' '}
-                    <Link href="#" sx={{ fontWeight: 500 }}>
+                    <Link href="#" sx={{ fontWeight: 500, color: 'primary.main' }}>
                       Terms of Service
                     </Link>
                     {' '}and{' '}
-                    <Link href="#" sx={{ fontWeight: 500 }}>
+                    <Link href="#" sx={{ fontWeight: 500, color: 'primary.main' }}>
                       Privacy Policy
                     </Link>
                   </Typography>
                 }
-                sx={{ mb: 3 }}
-              />
-              
+                sx={{ mb: 2, mt: 1, alignItems: 'flex-start' }} // Align checkbox top with text
+              /> */}
+
+              {/* Create Account Button */}
               <Button
                 type="submit"
                 fullWidth
-                variant="contained"
-                sx={{ 
-                  mt: 1, 
-                  mb: 3, 
+                variant="contained" // Adapts to theme primary
+                sx={{
+                  mt: 2, // Adjusted margin
+                  mb: 3,
                   py: 1.5,
                   borderRadius: 2,
                   fontWeight: 600,
                   textTransform: 'none',
                   fontSize: '1rem',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)', // Optional: consider theme shadows
                   '&:hover': {
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                    boxShadow: '0 6px 16px rgba(0,0,0,0.15)', // Optional: consider theme shadows
                   }
                 }}
               >
                 Create Account
               </Button>
-              
-              <Divider sx={{ my: 3 }}>
-                <Typography variant="body2" color="text.secondary">OR</Typography>
+
+              {/* Divider */}
+              <Divider sx={{ my: 3 }}> {/* Divider color adapts */}
+                <Typography variant="body2" color="text.secondary">OR</Typography> {/* Text color adapts */}
               </Divider>
-              
+
+              {/* Admin Sign In Button */}
               <Button
                 fullWidth
-                variant="outlined"
-                sx={{ 
-                  mb: 2, 
+                variant="outlined" // Adapts
+                sx={{
+                  mb: 2,
                   py: 1.5,
                   borderRadius: 2,
                   fontWeight: 500,
@@ -475,16 +307,18 @@ export default function UserSignUp() {
               >
                 Sign In as Admin
               </Button>
-              
+
+              {/* Already have an account? */}
               <Box sx={{ textAlign: 'center', mt: 3 }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary"> {/* Adapts */}
                   Already have an account?{' '}
-                  <Link 
-                    href="/" 
-                    variant="body2" 
-                    sx={{ 
+                  <Link
+                    href="/" // Should link to User Sign In page
+                    variant="body2"
+                    sx={{
                       fontWeight: 600,
                       textDecoration: 'none',
+                      color: 'primary.main', // Use theme link color
                       '&:hover': {
                         textDecoration: 'underline'
                       }
@@ -494,7 +328,8 @@ export default function UserSignUp() {
                   </Link>
                 </Typography>
               </Box>
-              
+
+              {/* Copyright */}
               <Copyright sx={{ mt: 5 }} />
             </Box>
           </Box>
@@ -503,4 +338,3 @@ export default function UserSignUp() {
     </CustomThemeProvider>
   );
 }
-

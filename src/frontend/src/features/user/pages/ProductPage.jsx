@@ -1,719 +1,5 @@
-// import React, { useState, useEffect } from 'react';
-// import { useParams, Link } from 'react-router-dom';
-// import {
-//   Container,
-//   Typography,
-//   CardMedia,
-//   Grid,
-//   CircularProgress,
-//   Paper,
-//   Box,
-//   Chip,
-//   Card,
-//   CardActionArea,
-//   CardHeader,
-//   styled,
-//   Button,
-//   Divider,
-//   IconButton,
-//   Tabs,
-//   Tab,
-//   Radio,
-//   RadioGroup,
-//   FormControlLabel,
-//   Breadcrumbs,
-//   Accordion,
-//   AccordionSummary,
-//   AccordionDetails,
-//   Tooltip
-// } from '@mui/material';
-// import { createTheme, ThemeProvider, responsiveFontSizes } from '@mui/material/styles';
-// import CssBaseline from '@mui/material/CssBaseline';
-// import {
-//   AccessTime,
-//   ColorLens,
-//   Category,
-//   CalendarToday,
-//   FavoriteBorder,
-//   Share,
-//   ShoppingBag,
-//   ExpandMore,
-//   ChevronRight,
-//   LocalShipping,
-//   Loop,
-//   Loyalty,
-//   NavigateNext
-// } from '@mui/icons-material';
-
-// // Define a custom theme inspired by Westside.com
-// let theme = createTheme({
-//   palette: {
-//     primary: {
-//       main: '#000000',  // Black for primary
-//       light: '#333333',
-//     },
-//     secondary: {
-//       main: '#b7846f',  // Muted terracotta accent
-//       light: '#d9b8ac',
-//     },
-//     background: {
-//       default: '#ffffff',  // Clean white background
-//       paper: '#ffffff',    // White for cards and paper
-//     },
-//     text: {
-//       primary: '#292929', // Slightly softer black for text
-//       secondary: '#6e6e6e', // Muted gray for secondary text
-//     }
-//   },
-//   typography: {
-//     fontFamily: "'Nunito Sans', 'Inter', sans-serif",
-//     h1: {
-//       fontSize: '2rem',
-//       fontWeight: 600,
-//       letterSpacing: '0.5px',
-//       textTransform: 'uppercase',
-//       color: '#292929',
-//     },
-//     h2: {
-//       fontSize: '1.75rem',
-//       fontWeight: 600,
-//       letterSpacing: '0.5px',
-//     },
-//     h6: {
-//       fontSize: '1.25rem',
-//       fontWeight: 600,
-//       letterSpacing: '0.3px',
-//       textTransform: 'uppercase',
-//       color: '#292929',
-//     },
-//     body1: {
-//       color: '#292929',
-//       fontSize: '1rem',
-//       letterSpacing: '0.2px',
-//     },
-//     subtitle1: {
-//       fontSize: '1.1rem',
-//       fontWeight: 600,
-//       color: '#292929',
-//     },
-//     subtitle2: {
-//       color: '#6e6e6e',
-//       fontSize: '0.95rem',
-//       letterSpacing: '0.1px',
-//     },
-//     caption: {
-//       fontSize: '0.85rem',
-//       color: '#6e6e6e',
-//       letterSpacing: '0.5px',
-//     },
-//     body2: {
-//       fontSize: '0.95rem',
-//       fontWeight: 500,
-//       color: '#292929',
-//     },
-//     button: {
-//       textTransform: 'none',
-//       fontWeight: 600,
-//     }
-//   },
-//   components: {
-//     MuiButton: {
-//       styleOverrides: {
-//         root: {
-//           borderRadius: 0,
-//           padding: '12px 24px',
-//           fontWeight: 600,
-//           textTransform: 'uppercase',
-//           letterSpacing: '1px',
-//           boxShadow: 'none',
-//           '&:hover': {
-//             boxShadow: 'none',
-//           },
-//         },
-//         containedPrimary: {
-//           backgroundColor: '#000000',
-//           color: '#ffffff',
-//           '&:hover': {
-//             backgroundColor: '#333333',
-//           },
-//         },
-//         outlinedPrimary: {
-//           borderColor: '#000000',
-//           borderWidth: '1px',
-//           '&:hover': {
-//             borderWidth: '1px',
-//             backgroundColor: 'rgba(0,0,0,0.04)',
-//           },
-//         },
-//       },
-//     },
-//     MuiCard: {
-//       styleOverrides: {
-//         root: {
-//           borderRadius: 0,
-//           boxShadow: 'none',
-//           transition: 'transform 0.3s, opacity 0.3s',
-//           '&:hover': {
-//             transform: 'translateY(-4px)',
-//             opacity: 0.9,
-//           },
-//         },
-//       },
-//     },
-//     MuiChip: {
-//       styleOverrides: {
-//         root: {
-//           borderRadius: 0,
-//           padding: '4px 8px',
-//           height: 'auto',
-//           backgroundColor: '#f5f5f5',
-//           color: '#292929',
-//           fontWeight: 500,
-//           letterSpacing: '0.5px',
-//         },
-//         colorPrimary: {
-//           backgroundColor: '#000000',
-//           color: '#ffffff',
-//         },
-//         colorSecondary: {
-//           backgroundColor: '#b7846f',
-//           color: '#ffffff',
-//         },
-//       },
-//     },
-//     MuiDivider: {
-//       styleOverrides: {
-//         root: {
-//           margin: '24px 0',
-//         },
-//       },
-//     },
-//     MuiAccordion: {
-//       styleOverrides: {
-//         root: {
-//           boxShadow: 'none',
-//           '&:before': {
-//             display: 'none',
-//           },
-//           '&.Mui-expanded': {
-//             margin: 0,
-//           },
-//         },
-//       },
-//     },
-//     MuiAccordionSummary: {
-//       styleOverrides: {
-//         root: {
-//           padding: 0,
-//           minHeight: 'auto',
-//           '&.Mui-expanded': {
-//             minHeight: 'auto',
-//           },
-//         },
-//         content: {
-//           margin: '12px 0',
-//           '&.Mui-expanded': {
-//             margin: '12px 0',
-//           },
-//         },
-//       },
-//     },
-//     MuiAccordionDetails: {
-//       styleOverrides: {
-//         root: {
-//           padding: '0 0 16px 0',
-//         },
-//       },
-//     },
-//     MuiTab: {
-//       styleOverrides: {
-//         root: {
-//           textTransform: 'none',
-//           fontWeight: 600,
-//           padding: '12px 16px',
-//           '&.Mui-selected': {
-//             color: '#000000',
-//           },
-//         },
-//       },
-//     },
-//     MuiTabs: {
-//       styleOverrides: {
-//         indicator: {
-//           backgroundColor: '#000000',
-//           height: 2,
-//         },
-//       },
-//     },
-//   },
-//   shape: {
-//     borderRadius: 0,
-//   },
-// });
-
-// // Make the theme responsive
-// theme = responsiveFontSizes(theme);
-
-// // Styled components
-// const ProductImage = styled(CardMedia)(({ theme }) => ({
-//   height: '600px',
-//   width: '100%',
-//   objectFit: 'contain',
-//   transition: 'transform 0.5s ease-in-out',
-//   '&:hover': {
-//     transform: 'scale(1.02)',
-//   },
-// }));
-
-// const DetailItemContainer = styled(Box)(({ theme }) => ({
-//   display: 'flex',
-//   alignItems: 'center',
-//   gap: theme.spacing(2),
-//   marginBottom: theme.spacing(2),
-// }));
-
-// const DetailIconContainer = styled(Box)(({ theme }) => ({
-//   display: 'flex',
-//   alignItems: 'center',
-//   justifyContent: 'center',
-//   '& svg': {
-//     color: theme.palette.text.secondary,
-//     fontSize: '20px',
-//   },
-// }));
-
-// const AddToCartButton = styled(Button)(({ theme }) => ({
-//   width: '100%',
-//   height: '48px',
-// }));
-
-// const ProductInfoContainer = styled(Box)(({ theme }) => ({
-//   paddingLeft: theme.spacing(4),
-//   [theme.breakpoints.down('md')]: {
-//     paddingLeft: 0,
-//     marginTop: theme.spacing(4),
-//   },
-// }));
-
-// const SizeButton = styled(Button)(({ theme }) => ({
-//   minWidth: '48px',
-//   height: '48px',
-//   margin: theme.spacing(0.5),
-//   borderRadius: 0,
-//   border: '1px solid #e0e0e0',
-//   '&.selected': {
-//     backgroundColor: '#000000',
-//     color: '#ffffff',
-//   },
-//   '&:hover': {
-//     backgroundColor: '#f5f5f5',
-//   },
-// }));
-
-// const ColorCircle = styled(Box)(({ bgcolor, selected }) => ({
-//   width: '32px',
-//   height: '32px',
-//   borderRadius: '50%',
-//   backgroundColor: bgcolor || '#cccccc',
-//   margin: '4px',
-//   cursor: 'pointer',
-//   border: selected ? '2px solid #000000' : '1px solid #e0e0e0',
-//   transition: 'transform 0.2s',
-//   '&:hover': {
-//     transform: 'scale(1.1)',
-//   },
-// }));
-
-// const DetailItem = ({ icon, title, value }) => {
-//   return (
-//     <DetailItemContainer>
-//       <DetailIconContainer>
-//         {icon}
-//       </DetailIconContainer>
-//       <div>
-//         <Typography variant="caption" color="textSecondary">{title}</Typography>
-//         <Typography variant="body2" fontWeight="500">{value}</Typography>
-//       </div>
-//     </DetailItemContainer>
-//   );
-// };
-
-// const ProductPage = () => {
-//   const { id } = useParams();
-//   const [product, setProduct] = useState(null);
-//   const [recommendations, setRecommendations] = useState({});
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState(null);
-//   const [selectedTab, setSelectedTab] = useState(0);
-//   const [selectedSize, setSelectedSize] = useState("");
-//   const [quantity, setQuantity] = useState(1);
-//   console.log("came to product page");
-//   console.log(id);
-
-//   // Available sizes (you can fetch these from the API in a real application)
-//   const sizes = ["XS", "S", "M", "L", "XL"];
-
-//   // Available colors (you can fetch these from the API in a real application)
-//   const colors = [
-//     { name: "Black", hex: "#000000" },
-//     { name: "White", hex: "#ffffff" },
-//     { name: "Red", hex: "#e53935" },
-//     { name: "Blue", hex: "#1e88e5" },
-//   ];
-
-//   const [selectedColor, setSelectedColor] = useState(colors[0]);
-
-//   useEffect(() => {
-//     const fetchProductDetails = async () => {
-//       setLoading(true);
-//       try {
-//         const response = await fetch(`http://localhost:8000/api/product/${id}`);
-//         if (!response.ok) {
-//           throw new Error(`Failed to fetch: ${response.status}`);
-//         }
-//         const data = await response.json();
-//         setProduct(data.product);
-//         setRecommendations(data.recommendations.recommendations || {});
-//       } catch (err) {
-//         setError(err.message);
-//       } finally {
-//         setLoading(false);
-//       }
-//     }; 
-
-//     fetchProductDetails();
-//   }, [id]);
-
-//   const handleTabChange = (event, newValue) => {
-//     setSelectedTab(newValue);
-//   };
-
-//   const handleSizeSelect = (size) => {
-//     setSelectedSize(size);
-//   };
-
-//   const handleColorSelect = (color) => {
-//     setSelectedColor(color);
-//   };
-
-//   const handleQuantityChange = (event) => {
-//     setQuantity(parseInt(event.target.value, 10));
-//   };
-
-//   if (loading) {
-//     return (
-//       <ThemeProvider theme={theme}>
-//         <CssBaseline />
-//         <Container style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-//           <CircularProgress />
-//         </Container>
-//       </ThemeProvider>
-//     );
-//   }
-
-//   if (error) {
-//     return (
-//       <ThemeProvider theme={theme}>
-//         <CssBaseline />
-//         <Container>
-//           <Typography color="error">Error: {error}</Typography>
-//         </Container>
-//       </ThemeProvider>
-//     );
-//   }
-
-//   if (!product) {
-//     return (
-//       <ThemeProvider theme={theme}>
-//         <CssBaseline />
-//         <Container>
-//           <Typography>Product not found.</Typography>
-//         </Container>
-//       </ThemeProvider>
-//     );
-//   }
-
-//   return (
-//     <ThemeProvider theme={theme}>
-//       <CssBaseline />
-//       <Container maxWidth="xl" sx={{ py: 4 }}>
-//         {/* Breadcrumbs navigation */}
-//         <Breadcrumbs
-//           separator={<NavigateNext fontSize="small" />}
-//           aria-label="breadcrumb"
-//           sx={{ mb: 4 }}
-//         >
-//           <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-//             <Typography variant="body2">Home</Typography>
-//           </Link>
-//           <Link to={`/category/${product.masterCategory}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-//             <Typography variant="body2">{product.masterCategory}</Typography>
-//           </Link>
-//           <Link to={`/category/${product.subCategory}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-//             <Typography variant="body2">{product.subCategory}</Typography>
-//           </Link>
-//           <Typography variant="body2" color="text.primary">{product.productDisplayName}</Typography>
-//         </Breadcrumbs>
-
-//         <Grid container spacing={6}>
-//           {/* Product Image Section */}
-//           <Grid item xs={12} md={6}>
-//             <Card elevation={0} sx={{ overflow: 'hidden', border: 'none' }}>
-//               <ProductImage
-//                 component="img"
-//                 image={`http://localhost:8000${product.image_url}`}
-//                 alt={product.productDisplayName}
-//               />
-//             </Card>
-//           </Grid>
-
-//           {/* Product Details Section */}
-//           <Grid item xs={12} md={6}>
-//             <ProductInfoContainer>
-//               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-//                 <Box>
-//                   <Typography variant="h1" sx={{ mb: 1 }}>
-//                     {product.productDisplayName}
-//                   </Typography>
-//                   <Typography variant="subtitle1" color="secondary" gutterBottom>
-//                     ${Math.floor(Math.random() * 100) + 50}.00
-//                   </Typography>
-//                 </Box>
-//                 <Box>
-//                   <Tooltip title="Add to Wishlist">
-//                     <IconButton aria-label="add to wishlist">
-//                       <FavoriteBorder />
-//                     </IconButton>
-//                   </Tooltip>
-//                   <Tooltip title="Share">
-//                     <IconButton aria-label="share">
-//                       <Share />
-//                     </IconButton>
-//                   </Tooltip>
-//                 </Box>
-//               </Box>
-
-//               <Divider />
-
-//               {/* Color Selection */}
-//               <Box sx={{ my: 3 }}>
-//                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
-//                   COLOR: <strong>{selectedColor.name}</strong>
-//                 </Typography>
-//                 <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-//                   {colors.map((color) => (
-//                     <ColorCircle
-//                       key={color.name}
-//                       bgcolor={color.hex}
-//                       selected={selectedColor.name === color.name}
-//                       onClick={() => handleColorSelect(color)}
-//                     />
-//                   ))}
-//                 </Box>
-//               </Box>
-
-//               {/* Size Selection */}
-//               <Box sx={{ my: 3 }}>
-//                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
-//                   SIZE: <strong>{selectedSize || "Select Size"}</strong>
-//                 </Typography>
-//                 <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-//                   {sizes.map((size) => (
-//                     <SizeButton
-//                       key={size}
-//                       variant="outlined"
-//                       className={selectedSize === size ? "selected" : ""}
-//                       onClick={() => handleSizeSelect(size)}
-//                     >
-//                       {size}
-//                     </SizeButton>
-//                   ))}
-//                 </Box>
-//                 <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
-//                   <Link to="/size-guide" style={{ color: 'inherit' }}>
-//                     Size Guide
-//                   </Link>
-//                 </Typography>
-//               </Box>
-
-//               {/* Quantity */}
-//               <Box sx={{ my: 3 }}>
-//                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
-//                   QUANTITY
-//                 </Typography>
-//                 <RadioGroup
-//                   row
-//                   value={quantity}
-//                   onChange={handleQuantityChange}
-//                 >
-//                   {[1, 2, 3, 4, 5].map((value) => (
-//                     <FormControlLabel
-//                       key={value}
-//                       value={value}
-//                       control={<Radio size="small" />}
-//                       label={value}
-//                     />
-//                   ))}
-//                 </RadioGroup>
-//               </Box>
-
-//               {/* Add to Cart Button */}
-//               <Box sx={{ my: 3 }}>
-//                 <AddToCartButton
-//                   variant="contained"
-//                   color="primary"
-//                   startIcon={<ShoppingBag />}
-//                 >
-//                   Add to Bag
-//                 </AddToCartButton>
-//               </Box>
-
-//               {/* Product Details Accordion */}
-//               <Box sx={{ mt: 4 }}>
-//                 <Accordion defaultExpanded>
-//                   <AccordionSummary
-//                     expandIcon={<ExpandMore />}
-//                     aria-controls="product-details-content"
-//                     id="product-details-header"
-//                   >
-//                     <Typography variant="subtitle1">Product Details</Typography>
-//                   </AccordionSummary>
-//                   <AccordionDetails>
-//                     <Grid container spacing={2}>
-//                       <Grid item xs={12} sm={6}>
-//                         <DetailItem
-//                           icon={<ColorLens />}
-//                           title="COLOR"
-//                           value={product.baseColour || 'N/A'}
-//                         />
-//                       </Grid>
-//                       <Grid item xs={12} sm={6}>
-//                         <DetailItem
-//                           icon={<Category />}
-//                           title="CATEGORY"
-//                           value={product.subCategory || 'N/A'}
-//                         />
-//                       </Grid>
-//                       <Grid item xs={12} sm={6}>
-//                         <DetailItem
-//                           icon={<CalendarToday />}
-//                           title="SEASON"
-//                           value={product.season || 'N/A'}
-//                         />
-//                       </Grid>
-//                       <Grid item xs={12} sm={6}>
-//                         <DetailItem
-//                           icon={<AccessTime />}
-//                           title="USAGE"
-//                           value={product.usage || 'N/A'}
-//                         />
-//                       </Grid>
-//                     </Grid>
-//                   </AccordionDetails>
-//                 </Accordion>
-
-//                 <Accordion>
-//                   <AccordionSummary
-//                     expandIcon={<ExpandMore />}
-//                     aria-controls="shipping-returns-content"
-//                     id="shipping-returns-header"
-//                   >
-//                     <Typography variant="subtitle1">Shipping & Returns</Typography>
-//                   </AccordionSummary>
-//                   <AccordionDetails>
-//                     <Grid container spacing={2}>
-//                       <Grid item xs={12}>
-//                         <DetailItem
-//                           icon={<LocalShipping />}
-//                           title="SHIPPING"
-//                           value="Free shipping on orders over $50"
-//                         />
-//                       </Grid>
-//                       <Grid item xs={12}>
-//                         <DetailItem
-//                           icon={<Loop />}
-//                           title="RETURNS"
-//                           value="Free returns within 30 days"
-//                         />
-//                       </Grid>
-//                     </Grid>
-//                   </AccordionDetails>
-//                 </Accordion>
-//               </Box>
-//             </ProductInfoContainer>
-//           </Grid>
-//         </Grid>
-
-//         {/* Complete the Look Section */}
-//         {Object.keys(recommendations).length > 0 && (
-//           <Box sx={{ mt: 8, mb: 4 }}>
-//             <Typography variant="h2" sx={{ mb: 3, textAlign: 'center' }}>
-//               Complete Your Look
-//             </Typography>
-
-//             {/* Recommendation Tabs */}
-//             <Tabs
-//               value={selectedTab}
-//               onChange={handleTabChange}
-//               centered
-//               sx={{ mb: 4 }}
-//             >
-//               {Object.keys(recommendations).map((category, index) => (
-//                 <Tab
-//                   key={category}
-//                   label={category.toUpperCase()}
-//                   id={`category-tab-${index}`}
-//                 />
-//               ))}
-//             </Tabs>
-
-//             {/* Recommendation Products */}
-//             {Object.entries(recommendations).map(([category, items], index) => (
-//               <Box
-//                 key={category}
-//                 role="tabpanel"
-//                 hidden={selectedTab !== index}
-//                 id={`tabpanel-${index}`}
-//               >
-//                 {selectedTab === index && (
-//                   <Grid container spacing={3}>
-//                     {items.map((item) => (
-//                       <Grid item xs={6} sm={4} md={3} key={item.id}>
-//                         <Card sx={{ height: '100%' }}>
-//                           <CardActionArea component={Link} to={`/product/${item.id}`}>
-//                             <CardMedia
-//                               component="img"
-//                               image={`http://localhost:8000${item.image_url}`}
-//                               alt={item.productDisplayName}
-//                               sx={{ height: 320, objectFit: 'cover' }}
-//                             />
-//                             <Box sx={{ p: 2 }}>
-//                               <Typography variant="body2" fontWeight="600" gutterBottom noWrap>
-//                                 {item.productDisplayName}
-//                               </Typography>
-//                               <Typography variant="subtitle2" color="secondary">
-//                                 ${Math.floor(Math.random() * 80) + 30}.00
-//                               </Typography>
-//                             </Box>
-//                           </CardActionArea>
-//                         </Card>
-//                       </Grid>
-//                     ))}
-//                   </Grid>
-//                 )}
-//               </Box>
-//             ))}
-//           </Box>
-//         )}
-//       </Container>
-//     </ThemeProvider>
-//   );
-// };
-
-// export default ProductPage;
-
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link as RouterLink, useNavigate } from 'react-router-dom'; // Use RouterLink
 import {
   Container,
   Typography,
@@ -743,14 +29,14 @@ import {
   Fade,
   Collapse,
   Skeleton,
-  Rating,
+  // Rating, // Removed as not in API data
   Badge,
   Snackbar,
   Alert,
-  Grow
+  Grow,
+  useTheme // Import useTheme
 } from '@mui/material';
-import { createTheme, ThemeProvider, responsiveFontSizes } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
+// Removed ThemeProvider, createTheme, responsiveFontSizes, CssBaseline from here
 import {
   AccessTime,
   ColorLens,
@@ -766,8 +52,8 @@ import {
   Loop,
   Loyalty,
   NavigateNext,
-  Star,
-  StarBorder,
+  // Star,           // Removed rating icons
+  // StarBorder,     // Removed rating icons
   AddShoppingCart,
   CheckCircle,
   ZoomIn,
@@ -775,231 +61,19 @@ import {
   ArrowForward,
   ArrowBack
 } from '@mui/icons-material';
+import { alpha } from '@mui/material/styles'; // Keep alpha
 
-// Define a custom theme inspired by Westside.com
-let theme = createTheme({
-  palette: {
-    primary: {
-      main: '#000000',  // Black for primary
-      light: '#333333',
-    },
-    secondary: {
-      main: '#b7846f',  // Muted terracotta accent
-      light: '#d9b8ac',
-    },
-    background: {
-      default: '#ffffff',  // Clean white background
-      paper: '#ffffff',    // White for cards and paper
-    },
-    text: {
-      primary: '#292929', // Slightly softer black for text
-      secondary: '#6e6e6e', // Muted gray for secondary text
-    }
-  },
-  typography: {
-    fontFamily: "'Nunito Sans', 'Inter', sans-serif",
-    h1: {
-      fontSize: '2rem',
-      fontWeight: 600,
-      letterSpacing: '0.5px',
-      textTransform: 'uppercase',
-      color: '#292929',
-    },
-    h2: {
-      fontSize: '1.75rem',
-      fontWeight: 600,
-      letterSpacing: '0.5px',
-    },
-    h6: {
-      fontSize: '1.25rem',
-      fontWeight: 600,
-      letterSpacing: '0.3px',
-      textTransform: 'uppercase',
-      color: '#292929',
-    },
-    body1: {
-      color: '#292929',
-      fontSize: '1rem',
-      letterSpacing: '0.2px',
-    },
-    subtitle1: {
-      fontSize: '1.1rem',
-      fontWeight: 600,
-      color: '#292929',
-    },
-    subtitle2: {
-      color: '#6e6e6e',
-      fontSize: '0.95rem',
-      letterSpacing: '0.1px',
-    },
-    caption: {
-      fontSize: '0.85rem',
-      color: '#6e6e6e',
-      letterSpacing: '0.5px',
-    },
-    body2: {
-      fontSize: '0.95rem',
-      fontWeight: 500,
-      color: '#292929',
-    },
-    button: {
-      textTransform: 'none',
-      fontWeight: 600,
-    }
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 0,
-          padding: '12px 24px',
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          boxShadow: 'none',
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            boxShadow: 'none',
-            transform: 'translateY(-2px)',
-          },
-        },
-        containedPrimary: {
-          backgroundColor: '#000000',
-          color: '#ffffff',
-          '&:hover': {
-            backgroundColor: '#333333',
-          },
-        },
-        outlinedPrimary: {
-          borderColor: '#000000',
-          borderWidth: '1px',
-          '&:hover': {
-            borderWidth: '1px',
-            backgroundColor: 'rgba(0,0,0,0.04)',
-          },
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: 0,
-          boxShadow: 'none',
-          transition: 'transform 0.3s, opacity 0.3s',
-          '&:hover': {
-            transform: 'translateY(-4px)',
-            opacity: 0.9,
-          },
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          borderRadius: 0,
-          padding: '4px 8px',
-          height: 'auto',
-          backgroundColor: '#f5f5f5',
-          color: '#292929',
-          fontWeight: 500,
-          letterSpacing: '0.5px',
-        },
-        colorPrimary: {
-          backgroundColor: '#000000',
-          color: '#ffffff',
-        },
-        colorSecondary: {
-          backgroundColor: '#b7846f',
-          color: '#ffffff',
-        },
-      },
-    },
-    MuiDivider: {
-      styleOverrides: {
-        root: {
-          margin: '24px 0',
-        },
-      },
-    },
-    MuiAccordion: {
-      styleOverrides: {
-        root: {
-          boxShadow: 'none',
-          '&:before': {
-            display: 'none',
-          },
-          '&.Mui-expanded': {
-            margin: 0,
-          },
-        },
-      },
-    },
-    MuiAccordionSummary: {
-      styleOverrides: {
-        root: {
-          padding: 0,
-          minHeight: 'auto',
-          '&.Mui-expanded': {
-            minHeight: 'auto',
-          },
-        },
-        content: {
-          margin: '12px 0',
-          '&.Mui-expanded': {
-            margin: '12px 0',
-          },
-        },
-      },
-    },
-    MuiAccordionDetails: {
-      styleOverrides: {
-        root: {
-          padding: '0 0 16px 0',
-        },
-      },
-    },
-    MuiTab: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          fontWeight: 600,
-          padding: '12px 16px',
-          transition: 'all 0.3s ease',
-          '&.Mui-selected': {
-            color: '#000000',
-          },
-          '&:hover': {
-            backgroundColor: 'rgba(0,0,0,0.02)',
-          },
-        },
-      },
-    },
-    MuiTabs: {
-      styleOverrides: {
-        indicator: {
-          backgroundColor: '#b7846f',
-          height: 2,
-        },
-      },
-    },
-  },
-  shape: {
-    borderRadius: 0,
-  },
-});
+// --- Styled Components (Keep as is from previous dark mode fix) ---
 
-// Make the theme responsive
-theme = responsiveFontSizes(theme);
-
-// Enhanced styled components
 const ProductImageContainer = styled(Box)(({ theme }) => ({
   position: 'relative',
   overflow: 'hidden',
   height: '600px',
-  backgroundColor: '#f9f9f9',
+  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[100],
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  borderRadius: theme.shape.borderRadius,
 }));
 
 const ProductImage = styled('img')(({ theme, zoomed }) => ({
@@ -1020,13 +94,13 @@ const ThumbnailContainer = styled(Box)(({ theme }) => ({
 const Thumbnail = styled(Box)(({ theme, active }) => ({
   width: '60px',
   height: '60px',
-  border: active ? '2px solid #b7846f' : '1px solid #e0e0e0',
+  border: active ? `2px solid ${theme.palette.secondary.main}` : `1px solid ${theme.palette.divider}`,
   padding: '2px',
   cursor: 'pointer',
   transition: 'all 0.2s ease',
   '&:hover': {
     transform: 'translateY(-2px)',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+    boxShadow: theme.shadows[2],
   },
   '& img': {
     width: '100%',
@@ -1039,13 +113,14 @@ const ImageNavButton = styled(IconButton)(({ theme, direction }) => ({
   position: 'absolute',
   top: '50%',
   transform: 'translateY(-50%)',
-  backgroundColor: 'rgba(255,255,255,0.8)',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+  backgroundColor: alpha(theme.palette.background.paper, 0.8),
+  color: theme.palette.text.primary,
+  boxShadow: theme.shadows[2],
   left: direction === 'prev' ? '10px' : 'auto',
   right: direction === 'next' ? '10px' : 'auto',
   zIndex: 2,
   '&:hover': {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: alpha(theme.palette.background.paper, 0.95),
   },
 }));
 
@@ -1053,32 +128,34 @@ const ZoomButton = styled(IconButton)(({ theme }) => ({
   position: 'absolute',
   bottom: '10px',
   right: '10px',
-  backgroundColor: 'rgba(255,255,255,0.8)',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+  backgroundColor: alpha(theme.palette.background.paper, 0.8),
+  color: theme.palette.text.primary,
+  boxShadow: theme.shadows[2],
   zIndex: 2,
   '&:hover': {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: alpha(theme.palette.background.paper, 0.95),
   },
 }));
 
 const DetailItemContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
-  gap: theme.spacing(2),
-  marginBottom: theme.spacing(2),
+  gap: theme.spacing(1.5), // Slightly reduced gap
+  marginBottom: theme.spacing(1.5), // Slightly reduced margin
   transition: 'transform 0.3s ease',
-  '&:hover': {
-    transform: 'translateX(5px)',
-  },
+//   '&:hover': { // Optional hover effect
+//     transform: 'translateX(3px)',
+//   },
 }));
 
 const DetailIconContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  minWidth: '24px', // Ensure icon has space
   '& svg': {
     color: theme.palette.secondary.main,
-    fontSize: '20px',
+    fontSize: '18px', // Slightly smaller icon
   },
 }));
 
@@ -1088,7 +165,9 @@ const AddToCartButton = styled(Button)(({ theme }) => ({
   position: 'relative',
   overflow: 'hidden',
   transition: 'all 0.3s ease',
-  background: 'linear-gradient(45deg, #000000 30%, #333333 90%)',
+  background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.primary.light} 90%)`,
+  color: theme.palette.primary.contrastText,
+  borderRadius: theme.shape.borderRadius * 4,
   '&::after': {
     content: '""',
     position: 'absolute',
@@ -1096,21 +175,26 @@ const AddToCartButton = styled(Button)(({ theme }) => ({
     left: -100,
     width: '100%',
     height: '100%',
-    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+    background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.contrastText, 0.15)}, transparent)`,
     transition: '0.5s',
   },
+  '&:hover': {
+      backgroundColor: alpha(theme.palette.primary.main, 0.9),
+       boxShadow: theme.shadows[4],
+  },
   '&:hover::after': {
-    left: 100,
+    left: '120%',
   },
 }));
 
 const FavoriteButton = styled(IconButton)(({ theme, isFavorite }) => ({
-  backgroundColor: isFavorite ? 'rgba(244, 67, 54, 0.1)' : 'transparent',
+  backgroundColor: isFavorite ? alpha(theme.palette.error.main, 0.1) : 'transparent',
   transition: 'all 0.3s ease',
   '&:hover': {
-    backgroundColor: isFavorite ? 'rgba(244, 67, 54, 0.2)' : 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: isFavorite ? alpha(theme.palette.error.main, 0.2) : theme.palette.action.hover,
     transform: 'scale(1.1)',
   },
+  color: isFavorite ? theme.palette.error.main : theme.palette.action.active,
 }));
 
 const ProductInfoContainer = styled(Box)(({ theme }) => ({
@@ -1125,44 +209,50 @@ const SizeButton = styled(Button)(({ theme, selected }) => ({
   minWidth: '48px',
   height: '48px',
   margin: theme.spacing(0.5),
-  borderRadius: 0,
-  border: '1px solid #e0e0e0',
+  borderRadius: theme.shape.borderRadius,
+  border: `1px solid ${theme.palette.divider}`,
   transition: 'all 0.3s ease',
-  backgroundColor: selected ? '#000000' : 'transparent',
-  color: selected ? '#ffffff' : '#292929',
+  backgroundColor: selected ? theme.palette.primary.main : 'transparent',
+  color: selected ? theme.palette.primary.contrastText : theme.palette.text.primary,
   '&:hover': {
-    backgroundColor: selected ? '#333333' : '#f5f5f5',
+    backgroundColor: selected ? theme.palette.primary.light : theme.palette.action.hover,
     transform: 'translateY(-2px)',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
+    boxShadow: theme.shadows[1],
+    borderColor: selected ? theme.palette.primary.light : theme.palette.divider,
   },
 }));
 
-const ColorCircle = styled(Box)(({ bgcolor, selected }) => ({
+// ColorCircle - kept for potential future use but commented out in render
+const ColorCircle = styled(Box)(({ bgcolor, selected, theme }) => ({
   width: '32px',
   height: '32px',
   borderRadius: '50%',
-  backgroundColor: bgcolor || '#cccccc',
+  backgroundColor: bgcolor || theme.palette.action.disabledBackground,
   margin: '4px',
   cursor: 'pointer',
-  border: selected ? '2px solid #b7846f' : '1px solid #e0e0e0',
+  border: selected ? `2px solid ${theme.palette.secondary.main}` : `1px solid ${theme.palette.divider}`,
   transition: 'all 0.3s ease',
   '&:hover': {
     transform: 'scale(1.1)',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    boxShadow: theme.shadows[2],
   },
 }));
 
 const AccordionRoot = styled(Accordion)(({ theme }) => ({
   transition: 'all 0.3s ease',
-  '&:hover': {
-    backgroundColor: 'rgba(0,0,0,0.01)',
-  },
+  backgroundColor: 'transparent',
+  boxShadow: 'none',
   '&::before': {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.palette.divider,
+    opacity: 1,
   },
   '&.Mui-expanded': {
     boxShadow: 'none',
+    backgroundColor: 'transparent',
+    margin: 0,
   },
+  '&:first-of-type': { '&::before': { display: 'none' } },
+  '&.Mui-expanded:last-of-type': { borderBottom: `1px solid ${theme.palette.divider}` }
 }));
 
 const SectionTitle = styled(Typography)(({ theme }) => ({
@@ -1170,6 +260,7 @@ const SectionTitle = styled(Typography)(({ theme }) => ({
   display: 'inline-block',
   marginBottom: theme.spacing(4),
   textAlign: 'center',
+  color: theme.palette.text.primary,
   '&:after': {
     content: '""',
     position: 'absolute',
@@ -1187,17 +278,18 @@ const RecommendationCard = styled(Card)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
   transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-  border: '1px solid transparent',
+  border: `1px solid transparent`,
   overflow: 'hidden',
+  backgroundColor: theme.palette.background.paper,
   '&:hover': {
     transform: 'translateY(-8px)',
-    borderColor: '#f0f0f0',
-    boxShadow: '0 15px 35px rgba(0,0,0,0.05), 0 5px 15px rgba(0,0,0,0.05)',
+    borderColor: theme.palette.divider,
+    boxShadow: theme.shadows[3],
   },
 }));
 
 const RecommendationMedia = styled(CardMedia)(({ theme }) => ({
-  height: 320,
+  height: 320, // Adjust height as needed
   backgroundSize: 'cover',
   transition: 'transform 0.5s ease',
   '&:hover': {
@@ -1211,7 +303,8 @@ const QuickInfo = styled(Box)(({ theme }) => ({
   gap: theme.spacing(3),
   marginBottom: theme.spacing(3),
   padding: theme.spacing(2),
-  backgroundColor: '#f9f9f9',
+  backgroundColor: theme.palette.action.hover,
+  borderRadius: theme.shape.borderRadius,
 }));
 
 const QuickInfoItem = styled(Box)(({ theme }) => ({
@@ -1221,9 +314,9 @@ const QuickInfoItem = styled(Box)(({ theme }) => ({
   textAlign: 'center',
 }));
 
-const BreadcrumbLink = styled(Link)(({ theme }) => ({
+const BreadcrumbLink = styled(RouterLink)(({ theme }) => ({
   textDecoration: 'none',
-  color: 'inherit',
+  color: theme.palette.text.secondary,
   display: 'flex',
   alignItems: 'center',
   transition: 'color 0.2s ease',
@@ -1233,80 +326,114 @@ const BreadcrumbLink = styled(Link)(({ theme }) => ({
 }));
 
 const DetailItem = ({ icon, title, value }) => {
+  const theme = useTheme();
   return (
     <DetailItemContainer>
       <DetailIconContainer>
         {icon}
       </DetailIconContainer>
-      <div>
-        <Typography variant="caption" color="textSecondary">{title}</Typography>
-        <Typography variant="body2" fontWeight="500">{value}</Typography>
-      </div>
+      <Box>
+        <Typography variant="caption" color="textSecondary" sx={{ textTransform: 'uppercase' }}>{title}</Typography>
+        <Typography variant="body2" fontWeight="500">{value || 'N/A'}</Typography>
+      </Box>
     </DetailItemContainer>
   );
 };
 
+
+// --- Main Product Page Component ---
+
 const ProductPage = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
-  const [recommendations, setRecommendations] = useState({});
+  const [recommendations, setRecommendations] = useState({}); // Store the recommendations object { Category: [items] }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [selectedColor, setSelectedColor] = useState(null);
+  // const [selectedColor, setSelectedColor] = useState(null); // State for color if needed later
   const [zoomed, setZoomed] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
 
-  // Generate additional product images (in a real app, these would come from the API)
+  const theme = useTheme();
+  const navigate = useNavigate(); // Import and use navigate for recommendations
+
+  // Available sizes (assuming static for now)
+  const sizes = ["XS", "S", "M", "L", "XL"]; // Adjust if API provides sizes
+
+  // Function to generate "additional" images (demo only - uses same image)
   const generateAdditionalImages = (mainImageUrl) => {
-    if (!mainImageUrl) return [mainImageUrl];
-    
-    // For demo purposes only - in a real app these would be actual different images
-    return [
-      mainImageUrl,
-      mainImageUrl,
-      mainImageUrl,
-    ];
+    const baseUrl = 'http://localhost:8000';
+    if (!mainImageUrl) return [`${baseUrl}/static/images/placeholder.jpg`]; // Provide a placeholder
+
+    const imagePath = mainImageUrl.startsWith(baseUrl) ? mainImageUrl.substring(baseUrl.length) : mainImageUrl;
+    const fullUrl = `${baseUrl}${imagePath}`;
+
+    // Return array with the main image duplicated (replace with actual logic if API provides more)
+    return [fullUrl, fullUrl, fullUrl];
   };
-
-  // Available sizes (you can fetch these from the API in a real application)
-  const sizes = ["XS", "S", "M", "L", "XL"];
-
-  // Available colors (you can fetch these from the API in a real application)
-  const colors = [
-    { name: "Black", hex: "#000000" },
-    { name: "White", hex: "#ffffff" },
-    { name: "Terracotta", hex: "#b7846f" },
-    { name: "Blue", hex: "#1e88e5" },
-  ];
 
   useEffect(() => {
     const fetchProductDetails = async () => {
       setLoading(true);
+      setError(null);
+      setProduct(null);
+      setRecommendations({});
+      setCurrentImageIndex(0);
+      setZoomed(false);
+      setSelectedSize("");
+
+      const baseUrl = 'http://localhost:8000';
+
       try {
-        const response = await fetch(`http://localhost:8000/api/product/${id}`);
+        const response = await fetch(`${baseUrl}/api/product/${id}`);
         if (!response.ok) {
-          throw new Error(`Failed to fetch: ${response.status}`);
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
-        setProduct(data.product);
-        setRecommendations(data.recommendations.recommendations || {});
-        // Set the first color as default
-        setSelectedColor(colors[0]);
+
+        if (!data || !data.product) {
+          throw new Error(`Product with ID ${id} not found.`);
+        }
+
+        // Process main product
+        const productWithFullUrl = {
+            ...data.product,
+            image_url: data.product.image_url?.startsWith('http')
+              ? data.product.image_url
+              : `${baseUrl}${data.product.image_url}`
+        };
+        setProduct(productWithFullUrl);
+
+        // Process recommendations
+        const rawRecommendations = data.recommendations?.recommendations; // Access nested object
+        const processedRecommendations = {};
+        if (rawRecommendations && typeof rawRecommendations === 'object') {
+            for (const category in rawRecommendations) {
+                processedRecommendations[category] = (rawRecommendations[category] || []).map(item => ({
+                    ...item,
+                    image_url: item.image_url?.startsWith('http')
+                      ? item.image_url
+                      : `${baseUrl}${item.image_url}`
+                }));
+            }
+        }
+        setRecommendations(processedRecommendations);
+
       } catch (err) {
-        setError(err.message);
+        console.error("Error fetching product details:", err);
+        setError(err.message || "Failed to load product details.");
       } finally {
         setLoading(false);
       }
-    }; 
+    };
 
     fetchProductDetails();
-  }, [id]);
+  }, [id]); // Re-fetch when ID changes
 
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
@@ -1316,19 +443,16 @@ const ProductPage = () => {
     setSelectedSize(size);
   };
 
-  const handleColorSelect = (color) => {
-    setSelectedColor(color);
-  };
-
   const handleQuantityChange = (event) => {
-    setQuantity(parseInt(event.target.value, 10));
+    const value = parseInt(event.target.value, 10);
+    if (!isNaN(value) && value > 0) {
+        setQuantity(value);
+    }
   };
 
   const handleToggleFavorite = () => {
     setIsFavorite(!isFavorite);
-    setSnackbarMessage(isFavorite 
-      ? "Removed from wishlist" 
-      : "Added to wishlist");
+    setSnackbarMessage(isFavorite ? "Removed from Wishlist" : "Added to Wishlist");
     setShowSnackbar(true);
   };
 
@@ -1338,35 +462,32 @@ const ProductPage = () => {
       setShowSnackbar(true);
       return;
     }
+    console.log(`Added ${quantity} x ${product.productDisplayName} (Size: ${selectedSize}) to cart`);
     setSnackbarMessage(`Added ${quantity} item(s) to your bag`);
     setShowSnackbar(true);
   };
 
   const handleCloseSnackbar = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
+    if (reason === 'clickaway') return;
     setShowSnackbar(false);
   };
 
-  const handleToggleZoom = () => {
-    setZoomed(!zoomed);
-  };
+  const handleToggleZoom = () => setZoomed(!zoomed);
 
   const handlePrevImage = () => {
-    if (!product) return;
+    if (!product || !product.image_url) return;
     const images = generateAdditionalImages(product.image_url);
-    setCurrentImageIndex((prevIndex) => 
-      prevIndex === 0 ? images.length - 1 : prevIndex - 1
-    );
+    if (images.length <= 1) return;
+    setCurrentImageIndex((prevIndex) => (prevIndex === 0 ? images.length - 1 : prevIndex - 1));
+    setZoomed(false);
   };
 
   const handleNextImage = () => {
-    if (!product) return;
+    if (!product || !product.image_url) return;
     const images = generateAdditionalImages(product.image_url);
-    setCurrentImageIndex((prevIndex) => 
-      prevIndex === images.length - 1 ? 0 : prevIndex + 1
-    );
+    if (images.length <= 1) return;
+    setCurrentImageIndex((prevIndex) => (prevIndex === images.length - 1 ? 0 : prevIndex + 1));
+    setZoomed(false);
   };
 
   const handleThumbnailClick = (index) => {
@@ -1374,158 +495,83 @@ const ProductPage = () => {
     setZoomed(false);
   };
 
-  // Calculate random price (in a real app, this would come from the API)
-  const generatePrice = () => {
-    const basePrice = Math.floor(Math.random() * 100) + 50;
-    return basePrice.toFixed(2);
-  };
-
+  // --- Loading State ---
   if (loading) {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Container maxWidth="xl" sx={{ py: 6 }}>
-          <Grid container spacing={6}>
-            <Grid item xs={12} md={6}>
-              <Skeleton variant="rectangular" height={600} animation="wave" />
-              <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                {[1, 2, 3].map((item) => (
-                  <Skeleton key={item} variant="rectangular" width={60} height={60} animation="wave" />
-                ))}
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Skeleton variant="text" height={60} width="80%" animation="wave" />
-              <Skeleton variant="text" height={30} width="40%" animation="wave" />
-              <Skeleton variant="rectangular" height={1} width="100%" sx={{ my: 3 }} animation="wave" />
-              
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                <Skeleton width={100} animation="wave" />
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-                {[1, 2, 3, 4].map((item) => (
-                  <Skeleton key={item} variant="circular" width={32} height={32} animation="wave" />
-                ))}
-              </Box>
-              
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                <Skeleton width={100} animation="wave" />
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <Skeleton key={item} variant="rectangular" width={48} height={48} animation="wave" />
-                ))}
-              </Box>
-              
-              <Skeleton variant="rectangular" height={48} width="100%" sx={{ mt: 4 }} animation="wave" />
-            </Grid>
+      <Container maxWidth="xl" sx={{ py: 6 }}>
+        <Grid container spacing={6}>
+          <Grid item xs={12} md={6}>
+            <Skeleton variant="rectangular" height={600} animation="wave" sx={{ borderRadius: theme.shape.borderRadius }}/>
+            <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+              {[1, 2, 3].map((item) => ( <Skeleton key={item} variant="rectangular" width={60} height={60} animation="wave" sx={{ borderRadius: theme.shape.borderRadius }}/> ))}
+            </Box>
           </Grid>
-        </Container>
-      </ThemeProvider>
+          <Grid item xs={12} md={6}>
+            <Skeleton variant="text" height={60} width="80%" animation="wave" />
+            <Skeleton variant="text" height={30} width="40%" animation="wave" sx={{ mb: 2 }}/>
+            <Skeleton variant="text" height={40} width="30%" animation="wave" sx={{ mb: 3 }}/>
+            <Skeleton variant="rectangular" height={1} width="100%" sx={{ my: 3 }} animation="wave" />
+            <Typography variant="subtitle2" sx={{ mb: 1 }}> <Skeleton width={100} animation="wave" /> </Typography>
+            <Box sx={{ display: 'flex', gap: 1, mb: 3 }}> {[1, 2, 3, 4, 5].map((item) => ( <Skeleton key={item} variant="rectangular" width={48} height={48} animation="wave" sx={{ borderRadius: theme.shape.borderRadius }}/> ))} </Box>
+            <Skeleton variant="rectangular" height={48} width="100%" sx={{ mt: 4, borderRadius: theme.shape.borderRadius * 4 }} animation="wave" />
+          </Grid>
+        </Grid>
+      </Container>
     );
   }
 
+  // --- Error State ---
   if (error) {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Container maxWidth="xl" sx={{ py: 6 }}>
-          <Alert severity="error" sx={{ borderRadius: 0 }}>
-            Error: {error}
-          </Alert>
-        </Container>
-      </ThemeProvider>
+      <Container maxWidth="xl" sx={{ py: 6 }}>
+        <Alert severity="error" sx={{ borderRadius: theme.shape.borderRadius }}> Error: {error} </Alert>
+      </Container>
     );
   }
 
+  // --- Product Not Found State ---
   if (!product) {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Container maxWidth="xl" sx={{ py: 6 }}>
-          <Alert severity="info" sx={{ borderRadius: 0 }}>
-            Product not found.
-          </Alert>
-        </Container>
-      </ThemeProvider>
+       <Container maxWidth="xl" sx={{ py: 6 }}>
+        <Alert severity="info" sx={{ borderRadius: theme.shape.borderRadius }}> Product not found. </Alert>
+      </Container>
     );
   }
 
-  // Generate product images
   const productImages = generateAdditionalImages(product.image_url);
-  const currentImage = productImages[currentImageIndex];
-  const price = generatePrice();
+  const currentImage = productImages.length > 0 ? productImages[currentImageIndex] : '';
+  const price = product.price ? product.price.toFixed(2) : 'N/A';
+  const recommendationCategories = Object.keys(recommendations);
 
+  // --- Render Product Page ---
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Container maxWidth="xl" sx={{ py: 6 }}>
-        {/* Breadcrumbs navigation */}
+    <>
+      <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 } }}>
+        {/* Breadcrumbs */}
         <Fade in={true} timeout={800}>
-          <Breadcrumbs
-            separator={<NavigateNext fontSize="small" />}
-            aria-label="breadcrumb"
-            sx={{ mb: 4 }}
-          >
-            <BreadcrumbLink to="/">
-              <Typography variant="body2">Home</Typography>
-            </BreadcrumbLink>
-            <BreadcrumbLink to={`/category/${product.masterCategory}`}>
-              <Typography variant="body2">{product.masterCategory}</Typography>
-            </BreadcrumbLink>
-            <BreadcrumbLink to={`/category/${product.subCategory}`}>
-              <Typography variant="body2">{product.subCategory}</Typography>
-            </BreadcrumbLink>
+          <Breadcrumbs separator={<NavigateNext fontSize="small" />} aria-label="breadcrumb" sx={{ mb: 4 }} >
+            <BreadcrumbLink to="/"> <Typography variant="body2">Home</Typography> </BreadcrumbLink>
+            <BreadcrumbLink to={`/products?category=${product.masterCategory}`}> <Typography variant="body2">{product.masterCategory}</Typography> </BreadcrumbLink>
+            <BreadcrumbLink to={`/products?subCategory=${product.subCategory}`}> <Typography variant="body2">{product.subCategory}</Typography> </BreadcrumbLink>
             <Typography variant="body2" color="text.primary">{product.productDisplayName}</Typography>
           </Breadcrumbs>
         </Fade>
 
-        <Grid container spacing={6}>
+        <Grid container spacing={{ xs: 3, md: 6 }}>
           {/* Product Image Section */}
           <Grid item xs={12} md={6}>
             <Fade in={true} timeout={800}>
               <Box>
                 <ProductImageContainer>
-                  <ImageNavButton 
-                    direction="prev" 
-                    onClick={handlePrevImage}
-                  >
-                    <ArrowBack fontSize="small" />
-                  </ImageNavButton>
-                  
-                  <ProductImage
-                    src={`http://localhost:8000${currentImage}`}
-                    alt={product.productDisplayName}
-                    zoomed={zoomed}
-                    onClick={handleToggleZoom}
-                  />
-                  
-                  <ImageNavButton 
-                    direction="next" 
-                    onClick={handleNextImage}
-                  >
-                    <ArrowForward fontSize="small" />
-                  </ImageNavButton>
-                  
-                  <ZoomButton onClick={handleToggleZoom}>
-                    {zoomed ? <ZoomOut /> : <ZoomIn />}
-                  </ZoomButton>
+                   {productImages.length > 1 && <ImageNavButton direction="prev" onClick={handlePrevImage} > <ArrowBack fontSize="small" /> </ImageNavButton>}
+                  <ProductImage src={currentImage} alt={product.productDisplayName} zoomed={zoomed} onClick={handleToggleZoom} />
+                   {productImages.length > 1 && <ImageNavButton direction="next" onClick={handleNextImage} > <ArrowForward fontSize="small" /> </ImageNavButton>}
+                  <ZoomButton onClick={handleToggleZoom}> {zoomed ? <ZoomOut /> : <ZoomIn />} </ZoomButton>
                 </ProductImageContainer>
-                
-                <ThumbnailContainer>
-                  {productImages.map((img, index) => (
-                    <Thumbnail 
-                      key={index} 
-                      active={index === currentImageIndex}
-                      onClick={() => handleThumbnailClick(index)}
-                    >
-                      <img 
-                        src={`http://localhost:8000${img}`} 
-                        alt={`${product.productDisplayName} thumbnail ${index + 1}`} 
-                      />
-                    </Thumbnail>
-                  ))}
-                </ThumbnailContainer>
+
+                {productImages.length > 1 && (
+                    <ThumbnailContainer> {productImages.map((img, index) => ( <Thumbnail key={index} active={index === currentImageIndex} onClick={() => handleThumbnailClick(index)} > <img src={img} alt={`${product.productDisplayName} thumbnail ${index + 1}`} /> </Thumbnail> ))} </ThumbnailContainer>
+                )}
               </Box>
             </Fade>
           </Grid>
@@ -1536,215 +582,50 @@ const ProductPage = () => {
               <ProductInfoContainer>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                   <Box>
-                    <Typography variant="h1" sx={{ mb: 1 }}>
-                      {product.productDisplayName}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <Rating value={4.5} precision={0.5} readOnly size="small" />
-                      <Typography variant="body2" color="text.secondary">
-                        (24 Reviews)
-                      </Typography>
-                    </Box>
-                    <Typography variant="subtitle1" color="secondary" gutterBottom>
-                      ${price}
-                    </Typography>
+                    <Typography variant="h1" sx={{ mb: 1, color: 'text.primary' }}> {product.productDisplayName} </Typography>
+                    {/* Removed Rating */}
+                    <Typography variant="h4" color="secondary.main" sx={{ fontWeight: 600 }} gutterBottom> ${price} </Typography>
                   </Box>
                   <Box>
                     <Tooltip title={isFavorite ? "Remove from Wishlist" : "Add to Wishlist"}>
-                      <FavoriteButton 
-                        aria-label="add to wishlist"
-                        onClick={handleToggleFavorite}
-                        isFavorite={isFavorite}
-                      >
-                        {isFavorite ? <Favorite color="error" /> : <FavoriteBorder />}
+                      <FavoriteButton aria-label="add to wishlist" onClick={handleToggleFavorite} isFavorite={isFavorite} >
+                        {isFavorite ? <Favorite /> : <FavoriteBorder />}
                       </FavoriteButton>
                     </Tooltip>
-                    <Tooltip title="Share">
-                      <IconButton aria-label="share">
-                        <Share />
-                      </IconButton>
-                    </Tooltip>
+                    <Tooltip title="Share"> <IconButton aria-label="share" color="inherit"> <Share /> </IconButton> </Tooltip>
                   </Box>
                 </Box>
-
-                <Divider />
-
-                {/* Quick Info */}
-                <QuickInfo>
-                  <QuickInfoItem>
-                    <LocalShipping sx={{ fontSize: 20, color: 'text.secondary', mb: 0.5 }} />
-                    <Typography variant="caption">Free Shipping</Typography>
-                  </QuickInfoItem>
-                  <QuickInfoItem>
-                    <Loop sx={{ fontSize: 20, color: 'text.secondary', mb: 0.5 }} />
-                    <Typography variant="caption">30 Day Returns</Typography>
-                  </QuickInfoItem>
-                  <QuickInfoItem>
-                    <Loyalty sx={{ fontSize: 20, color: 'text.secondary', mb: 0.5 }} />
-                    <Typography variant="caption">Loyalty Points</Typography>
-                  </QuickInfoItem>
-                </QuickInfo>
-
-                {/* Color Selection */}
-                {/* <Box sx={{ my: 3 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                    COLOR: <Typography component="span" sx={{ ml: 1, fontWeight: 'bold' }}>{selectedColor?.name}</Typography>
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-                    {colors.map((color) => (
-                      <Tooltip key={color.name} title={color.name}>
-                        <ColorCircle
-                          bgcolor={color.hex}
-                          selected={selectedColor?.name === color.name}
-                          onClick={() => handleColorSelect(color)}
-                        />
-                      </Tooltip>
-                    ))}
-                  </Box>
-                </Box> */}
+                <Divider sx={{ borderColor: 'divider' }} />
+                <QuickInfo> <QuickInfoItem> <LocalShipping sx={{ fontSize: 20, color: 'text.secondary', mb: 0.5 }} /> <Typography variant="caption">Free Shipping</Typography> </QuickInfoItem> <QuickInfoItem> <Loop sx={{ fontSize: 20, color: 'text.secondary', mb: 0.5 }} /> <Typography variant="caption">30 Day Returns</Typography> </QuickInfoItem> <QuickInfoItem> <Loyalty sx={{ fontSize: 20, color: 'text.secondary', mb: 0.5 }} /> <Typography variant="caption">Loyalty Points</Typography> </QuickInfoItem> </QuickInfo>
 
                 {/* Size Selection */}
                 <Box sx={{ my: 3 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                    SIZE: <Typography component="span" sx={{ ml: 1, fontWeight: 'bold' }}>{selectedSize || "Select Size"}</Typography>
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
-                    {sizes.map((size) => (
-                      <SizeButton
-                        key={size}
-                        variant="outlined"
-                        selected={selectedSize === size}
-                        onClick={() => handleSizeSelect(size)}
-                      >
-                        {size}
-                      </SizeButton>
-                    ))}
-                  </Box>
-                  <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
-                    <Link to="/size-guide" style={{ color: 'inherit', textDecoration: 'none', borderBottom: '1px solid #e0e0e0' }}>
-                      Size Guide
-                    </Link>
-                  </Typography>
+                  <Typography variant="subtitle2" sx={{ mb: 1, display: 'flex', alignItems: 'center', color: 'text.secondary' }}> SIZE: <Typography component="span" sx={{ ml: 1, fontWeight: 'bold', color: 'text.primary' }}>{selectedSize || "Select Size"}</Typography> </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap' }}> {sizes.map((size) => ( <SizeButton key={size} variant="outlined" selected={selectedSize === size} onClick={() => handleSizeSelect(size)} > {size} </SizeButton> ))} </Box>
+                  <Typography variant="caption" sx={{ mt: 1, display: 'block' }}> <RouterLink to="/size-guide" style={{ color: theme.palette.text.secondary, textDecoration: 'none', borderBottom: `1px solid ${theme.palette.divider}` }}> Size Guide </RouterLink> </Typography>
                 </Box>
 
                 {/* Quantity */}
                 <Box sx={{ my: 3 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                    QUANTITY
-                  </Typography>
-                  <RadioGroup
-                    row
-                    value={quantity}
-                    onChange={handleQuantityChange}
-                  >
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <FormControlLabel
-                        key={value}
-                        value={value}
-                        control={
-                          <Radio 
-                            size="small" 
-                            sx={{
-                              '&.Mui-checked': {
-                                color: theme.palette.secondary.main,
-                              },
-                            }}
-                          />
-                        }
-                        label={value}
-                      />
-                    ))}
-                  </RadioGroup>
+                  <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}> QUANTITY </Typography>
+                  <RadioGroup row value={quantity} onChange={handleQuantityChange} > { [1, 2, 3, 4, 5].map((value) => ( <FormControlLabel key={value} value={value} control={ <Radio size="small" sx={{ color: theme.palette.text.secondary, '&.Mui-checked': { color: theme.palette.secondary.main, }, }} /> } label={ <Typography variant="body2">{value}</Typography> } /> ))} </RadioGroup>
                 </Box>
 
-                {/* Add to Cart Button */}
+                {/* Add to Cart */}
                 <Box sx={{ my: 3 }}>
-                  <AddToCartButton
-                    variant="contained"
-                    color="primary"
-                    startIcon={<AddShoppingCart />}
-                    onClick={handleAddToCart}
-                    disabled={!selectedSize}
-                  >
-                    Add to Bag
-                  </AddToCartButton>
-                  {!selectedSize && (
-                    <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
-                      Please select a size
-                    </Typography>
-                  )}
+                  <AddToCartButton startIcon={<AddShoppingCart />} onClick={handleAddToCart} disabled={!selectedSize} > Add to Bag </AddToCartButton>
+                  {!selectedSize && ( <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1, textAlign: 'center' }}> Please select a size </Typography> )}
                 </Box>
 
-                {/* Product Details Accordion */}
+                {/* Accordions */}
                 <Box sx={{ mt: 4 }}>
                   <AccordionRoot defaultExpanded>
-                    <AccordionSummary
-                      expandIcon={<ExpandMore />}
-                      aria-controls="product-details-content"
-                      id="product-details-header"
-                    >
-                      <Typography variant="subtitle1">Product Details</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
-                          <DetailItem
-                            icon={<ColorLens />}
-                            title="COLOR"
-                            value={product.baseColour || 'N/A'}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <DetailItem
-                            icon={<Category />}
-                            title="CATEGORY"
-                            value={product.subCategory || 'N/A'}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <DetailItem
-                            icon={<CalendarToday />}
-                            title="SEASON"
-                            value={product.season || 'N/A'}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                          <DetailItem
-                            icon={<AccessTime />}
-                            title="USAGE"
-                            value={product.usage || 'N/A'}
-                          />
-                        </Grid>
-                      </Grid>
-                    </AccordionDetails>
+                    <AccordionSummary expandIcon={<ExpandMore />} aria-controls="product-details-content" id="product-details-header" > <Typography variant="subtitle1">Product Details</Typography> </AccordionSummary>
+                    <AccordionDetails> <Grid container spacing={2}> <Grid item xs={12} sm={6}> <DetailItem icon={<ColorLens />} title="COLOR" value={product.baseColour} /> </Grid> <Grid item xs={12} sm={6}> <DetailItem icon={<Category />} title="CATEGORY" value={product.subCategory} /> </Grid> <Grid item xs={12} sm={6}> <DetailItem icon={<CalendarToday />} title="SEASON" value={product.season} /> </Grid> <Grid item xs={12} sm={6}> <DetailItem icon={<AccessTime />} title="USAGE" value={product.usage} /> </Grid> </Grid> </AccordionDetails>
                   </AccordionRoot>
-
                   <AccordionRoot>
-                    <AccordionSummary
-                      expandIcon={<ExpandMore />}
-                      aria-controls="shipping-returns-content"
-                      id="shipping-returns-header"
-                    >
-                      <Typography variant="subtitle1">Shipping & Returns</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12}>
-                          <DetailItem
-                            icon={<LocalShipping />}
-                            title="SHIPPING"
-                            value="Free shipping on orders over $50"
-                          />
-                        </Grid>
-                        <Grid item xs={12}>
-                          <DetailItem
-                            icon={<Loop />}
-                            title="RETURNS"
-                            value="Free returns within 30 days"
-                          />
-                        </Grid>
-                      </Grid>
-                    </AccordionDetails>
+                    <AccordionSummary expandIcon={<ExpandMore />} aria-controls="shipping-returns-content" id="shipping-returns-header" > <Typography variant="subtitle1">Shipping & Returns</Typography> </AccordionSummary>
+                    <AccordionDetails> <Grid container spacing={2}> <Grid item xs={12}> <DetailItem icon={<LocalShipping />} title="SHIPPING" value="Free standard shipping" /> </Grid> <Grid item xs={12}> <DetailItem icon={<Loop />} title="RETURNS" value="Easy 30-day returns" /> </Grid> </Grid> </AccordionDetails>
                   </AccordionRoot>
                 </Box>
               </ProductInfoContainer>
@@ -1752,98 +633,36 @@ const ProductPage = () => {
           </Grid>
         </Grid>
 
-        {/* Complete the Look Section */}
-        {Object.keys(recommendations).length > 0 && (
-          <Box sx={{ mt: 8, mb: 4, pb: 8, px: 26, pt: 9}}>
+        {/* Recommendations Section */}
+        {recommendationCategories.length > 0 && (
+          <Box sx={{ mt: 8, mb: 4, pb: 8, pt: 9 }}>
             <Fade in={true} timeout={1200}>
               <div>
-                <SectionTitle variant="h2" sx={{ width: '100%', mb: 6, textAlign: 'center' }}>
-                  Complete Your Look
-                </SectionTitle>
-
-                {/* Recommendation Tabs */}
-                <Tabs
-                  value={selectedTab}
-                  onChange={handleTabChange}
-                  centered
-                  sx={{ mb: 4 }}
-                  TabIndicatorProps={{
-                    style: {
-                      transition: 'all 0.3s ease',
-                    }
-                  }}
-                >
-                  {Object.keys(recommendations).map((category, index) => (
-                    <Tab
-                      key={category}
-                      label={category.toUpperCase()}
-                      id={`category-tab-${index}`}
-                    />
-                  ))}
+                <SectionTitle variant="h2" sx={{ width: '100%', mb: 6, textAlign: 'center' }}> Complete Your Look </SectionTitle>
+                <Tabs value={selectedTab} onChange={handleTabChange} centered sx={{ mb: 4 }} TabIndicatorProps={{ sx: { backgroundColor: 'secondary.main', transition: 'all 0.3s ease' } }} textColor="inherit" >
+                  {recommendationCategories.map((category, index) => ( <Tab key={category} label={category.toUpperCase()} id={`category-tab-${index}`} sx={{ '&.Mui-selected': { color: 'secondary.main' }, '&:hover': { bgcolor: 'action.hover'} }} /> ))}
                 </Tabs>
               </div>
             </Fade>
 
-            {/* Recommendation Products */}
-            {Object.entries(recommendations).map(([category, items], index) => (
-              <Box
-                key={category}
-                role="tabpanel"
-                hidden={selectedTab !== index}
-                id={`tabpanel-${index}`}
-              >
+            {recommendationCategories.map((category, index) => (
+              <Box key={category} role="tabpanel" hidden={selectedTab !== index} id={`tabpanel-${index}`} >
                 {selectedTab === index && (
                   <Grid container spacing={3}>
-                    {items.map((item, itemIndex) => (
-                      <Grid item xs={6} sm={4} md={3} key={item.id}>
-                        <Grow
-                          in={true}
-                          style={{ transformOrigin: '0 0 0' }}
-                          timeout={500 + itemIndex * 100}
-                        >
+                    {(recommendations[category] || []).map((item, itemIndex) => (
+                      <Grid item xs={6} sm={4} md={3} key={item.id || itemIndex}>
+                        <Grow in={true} style={{ transformOrigin: '0 0 0' }} timeout={500 + itemIndex * 100} >
                           <RecommendationCard>
-                            <CardActionArea component={Link} to={`/product/${item.id}`}>
+                            <CardActionArea component={RouterLink} to={`/product/${item.id}`}>
                               <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-                                <RecommendationMedia
-                                  component="img"
-                                  image={`http://localhost:8000${item.image_url}`}
-                                  alt={item.productDisplayName}
-                                />
-                                <IconButton
-                                  sx={{
-                                    position: 'absolute',
-                                    top: 10,
-                                    right: 10,
-                                    backgroundColor: 'rgba(255,255,255,0.8)',
-                                    '&:hover': {
-                                      backgroundColor: 'rgba(255,255,255,0.9)',
-                                    },
-                                  }}
-                                >
-                                  <FavoriteBorder fontSize="small" />
-                                </IconButton>
+                                <RecommendationMedia component="img" image={item.image_url} alt={item.productDisplayName} />
+                                <IconButton sx={{ position: 'absolute', top: 10, right: 10, backgroundColor: alpha(theme.palette.background.paper, 0.8), color: theme.palette.text.secondary, '&:hover': { backgroundColor: alpha(theme.palette.background.paper, 0.95), }, }} > <FavoriteBorder fontSize="small" /> </IconButton>
                               </Box>
                               <Box sx={{ p: 2 }}>
-                                <Typography variant="body2" fontWeight="600" gutterBottom>
-                                  {item.productDisplayName}
-                                </Typography>
+                                <Typography variant="body2" fontWeight="600" gutterBottom noWrap> {item.productDisplayName} </Typography>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                                  <Typography variant="subtitle2" color="secondary">
-                                    ${Math.floor(Math.random() * 80) + 30}.00
-                                  </Typography>
-                                  <Chip 
-                                    label="View" 
-                                    size="small" 
-                                    color="primary"
-                                    sx={{ 
-                                      minWidth: "60px",
-                                      transition: "all 0.2s ease",
-                                      "&:hover": {
-                                        transform: "translateY(-2px)",
-                                        boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
-                                      }
-                                    }}
-                                  />
+                                  <Typography variant="subtitle2" color="secondary"> ${item.price ? item.price.toFixed(2) : 'N/A'} </Typography>
+                                  <Chip label="View" size="small" color="primary" sx={{ minWidth: "60px", transition: "all 0.2s ease", borderRadius: 16, "&:hover": { transform: "translateY(-2px)", boxShadow: theme.shadows[1] } }} />
                                 </Box>
                               </Box>
                             </CardActionArea>
@@ -1857,25 +676,13 @@ const ProductPage = () => {
             ))}
           </Box>
         )}
-        
-        {/* Snackbar for notifications */}
-        <Snackbar
-          open={showSnackbar}
-          autoHideDuration={4000}
-          onClose={handleCloseSnackbar}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert 
-            onClose={handleCloseSnackbar} 
-            severity="success" 
-            sx={{ borderRadius: 0, alignItems: 'center' }}
-            icon={<CheckCircle />}
-          >
-            {snackbarMessage}
-          </Alert>
+
+        {/* Snackbar */}
+        <Snackbar open={showSnackbar} autoHideDuration={4000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} TransitionComponent={Grow} >
+          <Alert elevation={6} variant="filled" onClose={handleCloseSnackbar} severity="success" sx={{ borderRadius: theme.shape.borderRadius, alignItems: 'center' }} icon={<CheckCircle />} > {snackbarMessage} </Alert>
         </Snackbar>
       </Container>
-    </ThemeProvider>
+    </>
   );
 };
 

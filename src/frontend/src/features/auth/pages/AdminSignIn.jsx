@@ -1,168 +1,3 @@
-// import { useState } from 'react';
-// import Avatar from '@mui/material/Avatar';
-// import Button from '@mui/material/Button';
-// import TextField from '@mui/material/TextField';
-// import Link from '@mui/material/Link';
-// import Paper from '@mui/material/Paper';
-// import Box from '@mui/material/Box';
-// import Grid from '@mui/material/Grid';
-// import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-// import Typography from '@mui/material/Typography';
-// import { useNavigate } from 'react-router-dom';
-// import ErrorMessage from '../../../components/common/ErrorMessage';
-// import authService from '../services/authService';
-// import CustomThemeProvider from '../../../components/common/CustomThemeProvider';
-
-// function Copyright(props) {
-//   return (
-//     <Typography variant="body2" color="text.secondary" align="center" {...props}>
-//       {'Copyright © '}
-//       <Link color="inherit" href="/">
-//         Fashion E-Commerce
-//       </Link>{' '}
-//       {new Date().getFullYear()}
-//       {'.'}
-//     </Typography>
-//   );
-// }
-
-
-// export default function AdminSignIn() {
-//   const navigate = useNavigate();
-//   const [errorMessage, setErrorMessage] = useState("");
-//   const handleSubmit = (event) => {
-//     event.preventDefault();
-//     const data = new FormData(event.currentTarget);
-//     // extracting data
-//     const username = data.get('username');
-//     const password = data.get('password');
-//     if (!username || !password) {
-//       setErrorMessage("Missing username or password");
-//       setTimeout(() => {
-//         setErrorMessage("");
-//       }, 5000);
-//       return;
-//     }
-//     const credentials = {
-//       username,
-//       password,
-//     };
-//     authService
-//       .loginAdmin(credentials)
-//       .then((user) => {
-//         window.localStorage.setItem(
-//           "loggedAdmin",
-//           JSON.stringify(user)
-//         );
-//         setErrorMessage("");
-//         console.log("Login Successful");
-//         navigate("/admin/dashboard", { replace: true });
-//       })
-//       .catch((error) => {
-//         if (error.response.data.error) {
-//           setErrorMessage(error.response.data.error);
-//           setTimeout(() => {
-//             setErrorMessage("");
-//           }, 5000);
-//         } else {
-//           setErrorMessage(
-//             "Error logging in : Please check the console for more details"
-//           );
-//           console.error(error);
-//           setTimeout(() => {
-//             setErrorMessage("");
-//           }, 5000);
-//         }
-//       });
-//   };
-
-//   return (
-//     <CustomThemeProvider>
-//       <ErrorMessage errorMessage={errorMessage} />
-//       <Grid container component="main" sx={{ height: '100vh' }}>
-//         <Grid
-//           item
-//           xs={false}
-//           sm={4}
-//           md={7}
-//           sx={{
-//             backgroundImage: 'url(https://unsplash.it/1920/1080?random)',
-//             backgroundRepeat: 'no-repeat',
-//             backgroundColor: (t) =>
-//               t.palette.mode === 'light' ? t.palette.grey[50] : t.palette.grey[900],
-//             backgroundSize: 'cover',
-//             backgroundPosition: 'center',
-//           }}
-//         />
-//         <Grid item xs={12} sm={8} md={5} component={Paper} elevation={6} square>
-//           <Box
-//             sx={{
-//               my: 8,
-//               mx: 4,
-//               display: 'flex',
-//               flexDirection: 'column',
-//               alignItems: 'center',
-//             }}
-//           >
-//             <Avatar sx={{ m: 1, bgcolor: 'secondary.main' }}>
-//               <LockOutlinedIcon />
-//             </Avatar>
-//             <Typography component="h1" variant="h5">
-//               Sign in
-//             </Typography>
-//             <Box component="form" noValidate onSubmit={handleSubmit} sx={{ mt: 1 }}>
-//               <TextField
-//                 margin="normal"
-//                 required
-//                 fullWidth
-//                 id="username"
-//                 label="Username"
-//                 name="username"
-//                 autoComplete="username"
-//                 autoFocus
-//               />
-//               <TextField
-//                 margin="normal"
-//                 required
-//                 fullWidth
-//                 name="password"
-//                 label="Password"
-//                 type="password"
-//                 id="password"
-//                 autoComplete="current-password"
-//               />
-//               <Button
-//                 type="submit"
-//                 fullWidth
-//                 variant="contained"
-//                 sx={{ mt: 3, mb: 2 }}
-//               >
-//                 Sign In
-//               </Button>
-//               <Button
-//                 fullWidth
-//                 variant="outlined"
-//                 sx={{ mt: 3, mb: 2 }}
-//                 onClick={() => navigate('/')}
-//               >
-//                 Sign In as User
-//               </Button>
-//               <Grid container>
-//                 <Grid item xs>
-//                   <Link href="#" variant="body2">
-//                     Forgot password?
-//                   </Link>
-//                 </Grid>
-//               </Grid>
-//               <Copyright sx={{ mt: 5 }} />
-//             </Box>
-//           </Box>
-//         </Grid>
-//       </Grid>
-//     </CustomThemeProvider>
-//   );
-// }
-
 import { useState } from 'react';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
@@ -197,9 +32,9 @@ function Copyright(props) {
 }
 
 export default function AdminSignIn() {
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // Assuming useNavigate is set up with react-router
   const [errorMessage, setErrorMessage] = useState("");
-  
+
   const handleSubmit = (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -225,7 +60,7 @@ export default function AdminSignIn() {
           JSON.stringify(user)
         );
         setErrorMessage("");
-        console.log("Login Successful");
+        console.log("Admin Login Successful, navigating...");
         navigate("/admin/dashboard", { replace: true });
       })
       .catch((error) => {
@@ -249,46 +84,50 @@ export default function AdminSignIn() {
   return (
     <CustomThemeProvider>
       <ErrorMessage errorMessage={errorMessage} />
-      <Grid container component="main" sx={{ height: '100vh' }}>
+       {/* Use background.default for adaptive background */}
+      <Grid container component="main" sx={{ height: '100vh', bgcolor: 'background.default' }}>
+        {/* Left Grid Item (Image) - Unchanged */}
         <Grid
           item
           xs={false}
-          sm={4}
-          md={7}
+          sm={4} // Adjusted breakpoints compared to UserSignIn
+          md={7} // Adjusted breakpoints compared to UserSignIn
           sx={{
+            // This logic seems fine - dark overlay on image, white text
             background: 'linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=2070&auto=format&fit=crop)',
             backgroundRepeat: 'no-repeat',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
             color: 'white',
-            padding: 4
+            padding: 4,
+            // Hide on smaller screens if needed, similar to UserSignIn
+            display: { xs: 'none', sm: 'flex' }
           }}
         >
-          <Box
-            sx={{ 
+           <Box
+            sx={{
               textAlign: 'center',
               maxWidth: '600px'
             }}
           >
-            <Typography 
-              component="h1" 
-              variant="h2" 
-              sx={{ 
-                fontWeight: 700, 
+            <Typography
+              component="h1"
+              variant="h2"
+              sx={{
+                fontWeight: 700,
                 marginBottom: 2,
                 letterSpacing: '-0.5px'
               }}
             >
               LUXE
             </Typography>
-            <Typography 
-              variant="h5" 
-              sx={{ 
-                fontWeight: 300, 
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 300,
                 marginBottom: 4,
                 letterSpacing: '3px'
               }}
@@ -301,44 +140,55 @@ export default function AdminSignIn() {
             </Typography>
           </Box>
         </Grid>
-        <Grid 
-          item 
-          xs={12} 
-          sm={8} 
-          md={5} 
-          component={Paper} 
-          elevation={0}
+
+        {/* Right Grid Item (Form) */}
+        <Grid
+          item
+          xs={12} // Full width on xs screens
+          sm={8}  // Takes remaining width on sm screens
+          md={5}  // Takes remaining width on md screens
+          component={Paper}
+          elevation={0} // No shadow
+          square // Sharp corners
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            bgcolor: '#FFFFFF'
+            justifyContent: 'center', // Center content vertically
+            alignItems: 'center',     // Center content horizontally <<-- ADDED
+            flexGrow: 1,              // Ensure it fills space <<-- ADDED
+            // bgcolor: '#FFFFFF'     // REMOVED - Paper will use theme color
+            // Use theme's background.paper color automatically
           }}
         >
+          {/* Inner Box holding form content */}
           <Box
             sx={{
-              px: { xs: 3, sm: 6, md: 8 },
-              py: { xs: 6, sm: 8 },
+              px: { xs: 3, sm: 6, md: 8 }, // Keep padding
+              py: { xs: 6, sm: 8 }, // Keep padding
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              maxWidth: '450px',
-              mx: 'auto',
-              width: '100%'
+              alignItems: 'center', // Center items inside this box (title, paragraph, form)
+              maxWidth: '450px', // Limit form width
+              // mx: 'auto',      // REMOVED - Parent Grid handles centering
+              // width: '100%'    // REMOVED - Let it size naturally up to maxWidth
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 5 }}>
+            {/* Title */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 5, color: 'text.primary' }}> {/* Use theme text color */}
               <ShieldOutlinedIcon sx={{ fontSize: 28, color: 'primary.main', mr: 1 }} />
               <Typography component="h1" variant="h5" sx={{ fontWeight: 600 }}>
                 Admin Login
               </Typography>
             </Box>
-            
-            <Typography component="p" variant="body1" sx={{ mb: 4, color: 'text.secondary', textAlign: 'center' }}>
+
+            {/* Subtitle */}
+            <Typography component="p" variant="body1" sx={{ mb: 4, color: 'text.secondary', textAlign: 'center' }}> {/* Use theme text color */}
               Sign in to access the store administration dashboard.
             </Typography>
-            
-            <Box component="form" noValidate onSubmit={handleSubmit} sx={{ width: '100%' }}>
+
+            {/* Form Container */}
+            <Box component="form" noValidate onSubmit={handleSubmit} sx={{ width: '100%' }}> {/* Needs width 100% for fullWidth inputs */}
+              {/* Username Field */}
               <TextField
                 margin="normal"
                 required
@@ -352,17 +202,19 @@ export default function AdminSignIn() {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <PersonOutlineOutlinedIcon sx={{ color: 'text.secondary' }} />
+                      <PersonOutlineOutlinedIcon sx={{ color: 'text.secondary' }} /> {/* Use theme text color */}
                     </InputAdornment>
                   ),
                 }}
-                sx={{ 
+                sx={{
                   mb: 3,
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    // Background will adapt based on theme
                   }
                 }}
               />
+              {/* Password Field */}
               <TextField
                 margin="normal"
                 required
@@ -376,70 +228,80 @@ export default function AdminSignIn() {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <LockOutlinedIcon sx={{ color: 'text.secondary' }} />
+                      <LockOutlinedIcon sx={{ color: 'text.secondary' }} /> {/* Use theme text color */}
                     </InputAdornment>
                   ),
                 }}
-                sx={{ 
+                sx={{
                   mb: 1,
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                     // Background will adapt based on theme
                   }
                 }}
               />
-              
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+
+              {/* Remember Me / Forgot Password */}
+              {/* <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                 <FormControlLabel
                   control={<Checkbox value="remember" color="primary" size="small" />}
+                   // Label text color adapts
                   label={<Typography variant="body2">Remember me</Typography>}
                 />
                 <Link href="#" variant="body2" sx={{ fontWeight: 500 }}>
                   Forgot password?
                 </Link>
-              </Box>
-              
+              </Box> */}
+
+              {/* Sign In Button */}
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
-                color="primary"
-                sx={{ 
-                  mt: 1, 
-                  mb: 3, 
+                color="primary" // Use theme's primary color
+                sx={{
+                  mt: 1,
+                  mb: 3,
                   py: 1.5,
                   borderRadius: 2,
                   fontWeight: 600,
                   textTransform: 'none',
                   fontSize: '1rem',
-                  bgcolor: '#1c313a',
-                  '&:hover': {
-                    bgcolor: '#0d1b20',
-                  }
+                  // Consider removing explicit bgcolor to rely purely on theme's primary variant="contained" style
+                  // bgcolor: '#1c313a', // This overrides theme color
+                  // '&:hover': {
+                  //   bgcolor: '#0d1b20', // This overrides theme hover
+                  // }
                 }}
               >
                 Sign In as Admin
               </Button>
-              
+
+              {/* Divider */}
+               {/* Divider color adapts */}
               <Divider sx={{ my: 3 }}>
+                 {/* Text color adapts */}
                 <Typography variant="body2" color="text.secondary">OR</Typography>
               </Divider>
-              
+
+              {/* Sign In as User Button */}
               <Button
                 fullWidth
-                variant="outlined"
-                sx={{ 
-                  mb: 2, 
+                variant="outlined" // Outlined adapts well
+                sx={{
+                  mb: 2,
                   py: 1.5,
                   borderRadius: 2,
                   fontWeight: 500,
                   textTransform: 'none',
                   fontSize: '1rem'
                 }}
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/')} // Navigate to user sign-in/home
               >
                 Sign In as User
               </Button>
-              
+
+              {/* Copyright */}
               <Copyright sx={{ mt: 5 }} />
             </Box>
           </Box>
