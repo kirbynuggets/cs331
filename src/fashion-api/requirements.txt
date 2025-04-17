@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pandas
+scikit-learn
+numpy
+pillow
+transformers
+chromadb
+annoy
+scipy

@@ -312,7 +312,7 @@ def get_ml_recommendations(
     top_n: int = 3,
     lambda_mmr: float = 0.5
 ) -> tuple[List[Dict], float]:
-    """Generate recommendations using Annoy and optimized MMR."""
+    """Generate recommendations using Annoy and optimized MMR with tiered filtering and faster data handling."""
     start_time = time.time()
     df = ml_model.df
     annoy_index = ml_model.annoy_index
@@ -323,98 +323,212 @@ def get_ml_recommendations(
         return [], 0.0
 
     target_vector_dense = target_features.toarray().flatten()
-    num_neighbors_to_fetch = min(ANNOY_SEARCH_K_FACTOR * top_n * 2, annoy_index.get_n_items())
+
+    # --- REDUCE NEIGHBORS --- Bring back to a more reasonable multiplier
+    num_neighbors_to_fetch = min(ANNOY_SEARCH_K_FACTOR * top_n * 8, annoy_index.get_n_items()) # Compromise multiplier
     annoy_start = time.time()
     initial_indices, _ = annoy_index.get_nns_by_vector(
         target_vector_dense, num_neighbors_to_fetch, search_k=-1, include_distances=True
     )
-    logger.info(f"[get_ml_recommendations] Annoy search ({len(initial_indices)} neighbors for {target_id or 'image'}) took {time.time() - annoy_start:.4f}s")
+    logger.info(f"[get_ml_recommendations] Annoy search ({len(initial_indices)} neighbors, multiplier=8) for {target_id or 'image'} took {time.time() - annoy_start:.4f}s")
 
     if not initial_indices:
-        logger.warning(f"[get_ml_recommendations] Annoy returned no neighbors for {target_article_type}.")
+        logger.warning(f"[get_ml_recommendations] Annoy returned no neighbors initially for {target_article_type}.")
         return [], 0.0
 
     filter_start = time.time()
 
-    target_group = next((group for group, types in ARTICLE_TYPE_GROUPS.items() if target_article_type in types), None)
+    # --- OPTIMIZATION: Create smaller DF with only needed columns ---
+    # Define columns essential for filtering steps
+    filtering_cols = ["id", "articleType", "gender", "baseColour"]
+    # Ensure these columns exist in the main df
+    cols_to_fetch = [col for col in filtering_cols if col in df.columns]
+    if "id" not in cols_to_fetch: cols_to_fetch.append("id") # Ensure ID is always fetched
 
-    if target_group:
-        candidate_types = ARTICLE_TYPE_GROUPS.get(target_group, [target_article_type])
-    else:
-        candidate_types = [target_article_type]
+    try:
+        # Extract only necessary columns for the initial Annoy candidates
+        candidate_filter_df = df.loc[initial_indices, cols_to_fetch].copy()
+        # Add original index to the filter df to map back easily
+        candidate_filter_df['original_index'] = initial_indices
+        logger.debug(f"Created candidate_filter_df with shape {candidate_filter_df.shape} for filtering.")
+    except KeyError as e:
+         logger.error(f"Error creating candidate_filter_df: Missing columns? {e}. Indices: {initial_indices[:10]}...")
+         # Fallback to fetching all columns if specific ones fail (less optimal)
+         try:
+              candidate_filter_df = df.loc[initial_indices].copy()
+              candidate_filter_df['original_index'] = initial_indices
+              logger.warning("Fell back to fetching all columns for candidate_filter_df.")
+         except Exception as fallback_e:
+              logger.error(f"Fallback data fetch failed: {fallback_e}")
+              return [], 0.0
+    # --- End Optimization ---
 
-    logger.info(f"[get_ml_recommendations] Filtering for request type '{target_article_type}'. Using candidate article types: {candidate_types}")
 
-    candidate_df = df.iloc[initial_indices].copy()
+    filtered_indices = [] # Store the *original* indices of final candidates
+    final_filter_stage = "None" # Track which attempt succeeded
 
-    initial_candidate_count = len(candidate_df)
-    logger.debug(f"[get_ml_recommendations] Initial Annoy candidates for {target_article_type}: {initial_candidate_count}")
+    # --- Attempt 1: Strict Type, Gender, Self-Exclusion, THEN Color ---
+    logger.info(f"[Attempt 1] Filtering {len(candidate_filter_df)} candidates strictly for type='{target_article_type}', gender='{product_gender}'/'Unisex', color='{target_color}'")
 
-    type_mask = candidate_df["articleType"].isin(candidate_types)
-    candidate_df = candidate_df[type_mask]
-    logger.debug(f"[get_ml_recommendations] After type filter {candidate_types}: {len(candidate_df)}")
+    # Build boolean masks on the smaller candidate_filter_df
+    type_mask = candidate_filter_df["articleType"] == target_article_type
+    gender_mask = candidate_filter_df["gender"].isin([product_gender, "Unisex"])
+    self_mask = (candidate_filter_df["id"] != target_id) if target_id else pd.Series([True] * len(candidate_filter_df), index=candidate_filter_df.index)
 
-    gender_mask = candidate_df["gender"].isin([product_gender, "Unisex"])
-    candidate_df = candidate_df[gender_mask]
-    logger.debug(f"[get_ml_recommendations] After gender filter {[product_gender, 'Unisex']}: {len(candidate_df)}")
+    # Combine non-color masks
+    base_filter_mask = type_mask & gender_mask & self_mask
+    strict_indices_no_color = candidate_filter_df.loc[base_filter_mask, 'original_index'].tolist()
+    logger.debug(f"[Attempt 1] Candidates after strict type/gender/self-exclusion: {len(strict_indices_no_color)}")
 
-    if target_id:
-        self_mask = (candidate_df["id"] != target_id)
-        candidate_df = candidate_df[self_mask]
-        logger.debug(f"[get_ml_recommendations] After self-exclusion filter ({target_id}): {len(candidate_df)}")
+    # Apply color filter if possible and needed
+    attempt1_indices = []
+    if strict_indices_no_color: # Check if list is not empty
+        strict_df_for_color = candidate_filter_df.loc[base_filter_mask].copy() # Get df matching base filters
+        if target_color:
+            color_scores = strict_df_for_color["baseColour"].apply(
+                lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
+            )
+            min_color_threshold = 0.15 if len(strict_df_for_color[color_scores >= 0.15]) >= top_n else 0.0
+            color_mask = color_scores >= min_color_threshold
 
-    if target_color and not candidate_df.empty:
-         color_scores = candidate_df["baseColour"].apply(
-             lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
-         )
-         min_color_threshold = 0.2 if len(candidate_df[color_scores >= 0.2]) >= top_n else 0.0
-         color_mask = color_scores >= min_color_threshold
-         candidate_df = candidate_df[color_mask]
-         logger.debug(f"[get_ml_recommendations] After color filter (threshold {min_color_threshold}): {len(candidate_df)}")
+            # Get original indices passing the color filter
+            attempt1_indices = strict_df_for_color.loc[color_mask, 'original_index'].tolist()
+            logger.debug(f"[Attempt 1] Candidates after color filter (threshold {min_color_threshold}): {len(attempt1_indices)}")
+        else:
+            # No target color, use all indices from the base filter
+            attempt1_indices = strict_indices_no_color
+            logger.debug("[Attempt 1] No target color specified, using strictly typed candidates.")
 
-    filtered_candidate_df = candidate_df
+    if attempt1_indices:
+        filtered_indices = attempt1_indices
+        final_filter_stage = "Attempt 1: Strict + Color"
 
-    logger.info(f"[get_ml_recommendations] Filtering took {time.time() - filter_start:.4f}s. Candidates reduced from {initial_candidate_count} to {len(filtered_candidate_df)} for {target_article_type}")
+    # --- Attempt 2: Strict Type, Gender, Self-Exclusion (Relax Color) ---
+    if not filtered_indices and strict_indices_no_color:
+        # Attempt 1 failed (likely color), but we have candidates matching type/gender/self
+        logger.warning(f"[Attempt 2] Strict filtering with color failed for '{target_article_type}'. Relaxing color constraint.")
+        filtered_indices = strict_indices_no_color # Use the indices before color filtering
+        final_filter_stage = "Attempt 2: Strict (Relaxed Color)"
+        logger.info(f"[Attempt 2] Using {len(filtered_indices)} candidates matching type/gender/self-exclusion.")
 
-    if filtered_candidate_df.empty:
-        logger.warning(f"[get_ml_recommendations] No suitable candidates found after filtering for {target_article_type} (Gender: {product_gender}, Color: {target_color})")
+    # --- Attempt 3: Fallback to Group (Last Resort) ---
+    if not filtered_indices:
+        # Attempts 1 & 2 failed - no items of strict type (+ gender + self) found
+        logger.warning(f"[Attempt 3] No candidates found matching strict type '{target_article_type}' even after relaxing color. Falling back to broader group.")
+        target_group = next((group for group, types in ARTICLE_TYPE_GROUPS.items() if target_article_type in types), None)
+
+        if target_group:
+            group_candidate_types = ARTICLE_TYPE_GROUPS.get(target_group, [])
+            fallback_types_to_use = [t for t in group_candidate_types if t != target_article_type]
+            if not fallback_types_to_use: fallback_types_to_use = group_candidate_types
+
+            logger.info(f"[Attempt 3] Using fallback candidate types: {fallback_types_to_use}")
+
+            # Filter the candidate_filter_df using group types + existing gender/self masks
+            type_mask_fb = candidate_filter_df["articleType"].isin(fallback_types_to_use)
+            # Reuse gender/self masks defined earlier
+            base_filter_mask_fb = type_mask_fb & gender_mask & self_mask
+            fallback_indices_no_color = candidate_filter_df.loc[base_filter_mask_fb, 'original_index'].tolist()
+            logger.debug(f"[Attempt 3] Candidates after fallback type/gender/self-exclusion: {len(fallback_indices_no_color)}")
+
+
+            # Apply color filter to fallback candidates if needed
+            attempt3_indices = []
+            if fallback_indices_no_color:
+                 fallback_df_for_color = candidate_filter_df.loc[base_filter_mask_fb].copy()
+                 if target_color:
+                     color_scores_fb = fallback_df_for_color["baseColour"].apply(
+                         lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
+                     )
+                     min_color_threshold_fb = 0.15 if len(fallback_df_for_color[color_scores_fb >= 0.15]) >= top_n else 0.0
+                     color_mask_fb = color_scores_fb >= min_color_threshold_fb
+                     attempt3_indices = fallback_df_for_color.loc[color_mask_fb, 'original_index'].tolist()
+                     logger.debug(f"[Attempt 3] Candidates after fallback color filter (threshold {min_color_threshold_fb}): {len(attempt3_indices)}")
+                 else:
+                     attempt3_indices = fallback_indices_no_color # No color filter needed
+
+            if attempt3_indices:
+                 filtered_indices = attempt3_indices # Use fallback results
+                 final_filter_stage = "Attempt 3: Fallback Group"
+                 logger.info(f"[Attempt 3] Using {len(filtered_indices)} candidates from fallback group filter.")
+            else:
+                 logger.warning(f"[Attempt 3] Fallback filtering also yielded no results for group '{target_group}'.")
+
+        else:
+             logger.warning(f"[Attempt 3] No group found for fallback for '{target_article_type}'. Cannot proceed with fallback.")
+
+    # --- Final Check and MMR ---
+    logger.info(f"Filtering took {time.time() - filter_start:.4f}s. Final filter stage: '{final_filter_stage}'. Final candidates for MMR: {len(filtered_indices)}")
+
+    if not filtered_indices:
+        logger.warning(f"No suitable candidates found after all attempts for {target_article_type} (Gender: {product_gender}, Color: {target_color})")
         return [], 0.0
 
-    filtered_original_indices = filtered_candidate_df.index.tolist()
-    candidate_features_sparse = all_features[filtered_original_indices]
+    # --- Ensure indices are unique before passing to MMR/feature extraction ---
+    filtered_original_indices = sorted(list(set(filtered_indices))) # Use the final list of original indices
+    logger.debug(f"Unique indices for feature extraction: {len(filtered_original_indices)}")
+
+
+    # Fetch features using the final list of unique original indices
+    try:
+        candidate_features_sparse = all_features[filtered_original_indices]
+    except IndexError as e:
+         logger.error(f"IndexError fetching features: {e}. Indices: {filtered_original_indices[:10]}... Max index in features: {all_features.shape[0]-1}")
+         # Try filtering out invalid indices (shouldn't happen ideally)
+         max_valid_index = all_features.shape[0] - 1
+         valid_indices = [idx for idx in filtered_original_indices if idx <= max_valid_index]
+         if not valid_indices:
+             logger.error("No valid indices remaining after range check.")
+             return [], 0.0
+         logger.warning(f"Proceeding with {len(valid_indices)} valid indices after range check.")
+         filtered_original_indices = valid_indices
+         candidate_features_sparse = all_features[filtered_original_indices]
+
 
     mmr_start = time.time()
     selected_original_indices = optimized_mmr(
         target_vector_dense,
-        filtered_original_indices,
-        candidate_features_sparse,
+        filtered_original_indices, # Pass the list of original indices
+        candidate_features_sparse, # Pass the corresponding features
         top_n,
         lambda_param=lambda_mmr
     )
     logger.info(f"[get_ml_recommendations] MMR selection took {time.time() - mmr_start:.4f}s")
 
     if not selected_original_indices:
-        logger.warning(f"[get_ml_recommendations] MMR did not select any items for {target_article_type}.")
+        logger.warning(f"[get_ml_recommendations] MMR did not select any items from the '{final_filter_stage}' candidates for {target_article_type}.")
         return [], 0.0
 
+    # Fetch full data for *only* the selected items using their original indices
     results_df = df.loc[selected_original_indices]
     results = []
+
+    # Get expected types from the final candidate pool *before* MMR
+    # We need to check the types of items corresponding to filtered_original_indices
+    # Fetch the article types for the candidate indices before MMR
+    final_candidate_types_df = df.loc[filtered_original_indices, ['articleType']]
+    final_expected_types = final_candidate_types_df['articleType'].unique()
+    logger.debug(f"Validating MMR results against expected types from '{final_filter_stage}': {final_expected_types}")
+
     for _, item_row in results_df.iterrows():
          item_dict = item_row.to_dict()
-         if item_dict.get('articleType') not in candidate_types:
-             logger.warning(f"MMR selected item {item_dict.get('id')} with unexpected type '{item_dict.get('articleType')}' when filtering for {candidate_types}. Skipping.")
-             continue
+         current_item_type = item_dict.get('articleType')
 
+         # Validate against the types that were actually in the pool given to MMR
+         if current_item_type not in final_expected_types:
+              logger.warning(f"MMR selected item {item_dict.get('id')} with unexpected type '{current_item_type}' for request '{target_article_type}'. Expected one of {final_expected_types} (from stage '{final_filter_stage}'). Skipping.")
+              continue
+
+         # Convert ID back to int for the response model
          item_id_int = int(item_dict['id'])
          item_dict['id'] = item_id_int
+         # Add image URL
          item_dict['image_url'] = f"/static/images/{item_id_int}.jpg"
          results.append(item_dict)
 
-
     novelty_score = inverse_popularity_score(results) if results else 0.0
-
     total_time = time.time() - start_time
-    logger.info(f"[get_ml_recommendations] Recommendation generation for {target_article_type} took {total_time:.4f}s. Found {len(results)} items.")
+    logger.info(f"[get_ml_recommendations] Recommendation generation for '{target_article_type}' (Stage: '{final_filter_stage}') took {total_time:.4f}s. Found {len(results)} items.")
 
     return results, novelty_score
 
@@ -652,6 +766,7 @@ async def product_page(item_id: str):
         logger.error(f"Invalid item_id format: {item_id}")
         raise HTTPException(status_code=400, detail="Invalid item ID format.")
 
+    # 1. Get Target Item Info
     product = get_item(item_id)
     if product is None:
         logger.error(f"Product {item_id} not found.")
@@ -663,34 +778,164 @@ async def product_page(item_id: str):
         raise HTTPException(status_code=404, detail="Item data or features not found.")
 
     target_features = ml_model.combined_features[target_idx]
+    target_vector_dense = target_features.toarray().flatten() # For Annoy/MMR
     target_gender, target_usage, target_season = product["gender"], product["usage"], product["season"]
     target_color, target_article_type = product.get("baseColour"), product["articleType"]
 
+    # 2. Determine All Required Recommendation Types
     compatible_types_list = get_compatible_types(target_article_type)
     accessory_types = get_accessory_types(target_usage, target_season)
+    all_target_types = list(set(compatible_types_list + accessory_types))
+    logger.info(f"Required recommendation types: {all_target_types}")
 
     recommendations_dict = {}
     metrics_agg = {'novelty': []}
 
-    all_target_types = list(set(compatible_types_list + accessory_types))
+    # --- Optimization: Single Annoy Search ---
+    annoy_index = ml_model.annoy_index
+    all_features = ml_model.combined_features
+    df = ml_model.df
 
-    logger.info(f"Generating recommendations for types: {all_target_types}")
+    if annoy_index is None or all_features is None or df is None:
+        logger.error("ML model components not initialized for product page.")
+        raise HTTPException(status_code=500, detail="Server error: Recommender components unavailable.")
 
+    # Fetch a larger pool - adjust multiplier as needed (balance recall and performance)
+    # Consider how many *total* items you might need across all types. E.g., 20 types * 5 items = 100 base. Add buffer.
+    num_potential_neighbors = min(ANNOY_SEARCH_K_FACTOR * len(all_target_types) * 5, annoy_index.get_n_items()) # More targeted multiplier
+    num_potential_neighbors = max(num_potential_neighbors, 200) # Ensure a minimum pool size
+    logger.info(f"Fetching {num_potential_neighbors} initial candidates from Annoy.")
+
+    annoy_start = time.time()
+    initial_indices, _ = annoy_index.get_nns_by_vector(
+        target_vector_dense, num_potential_neighbors, search_k=-1, include_distances=True
+    )
+    logger.info(f"Single Annoy search for product {item_id} took {time.time() - annoy_start:.4f}s, found {len(initial_indices)} candidates.")
+
+    if not initial_indices:
+        logger.warning(f"Annoy returned no initial candidates for product {item_id}.")
+        # Return empty recommendations gracefully
+        return ProductPageResponse(
+             product=Item(**product),
+             recommendations=OutfitRecommendation(recommendations={}, metrics={'novelty': 0.0})
+         )
+
+    # --- Optimization: Pre-filter the Pool ---
+    # Fetch only necessary columns for the *entire pool* once
+    filtering_cols = ["id", "articleType", "gender", "baseColour"]
+    cols_to_fetch = [col for col in filtering_cols if col in df.columns]
+    if "id" not in cols_to_fetch: cols_to_fetch.append("id")
+
+    try:
+        candidate_pool_df = df.loc[initial_indices, cols_to_fetch].copy()
+        candidate_pool_df['original_index'] = initial_indices # Keep track of original index
+        logger.debug(f"Created candidate_pool_df with shape {candidate_pool_df.shape}")
+    except Exception as e:
+         logger.error(f"Error creating candidate_pool_df: {e}")
+         # Fallback or raise error
+         raise HTTPException(status_code=500, detail="Error preparing candidate data.")
+
+    # Apply base filters (gender, self-exclusion) to the entire pool ONCE
+    base_gender_mask = candidate_pool_df["gender"].isin([target_gender, "Unisex"])
+    base_self_mask = candidate_pool_df["id"] != item_id
+    base_filtered_pool_df = candidate_pool_df[base_gender_mask & base_self_mask]
+    logger.info(f"Base filtering reduced pool size to {len(base_filtered_pool_df)} candidates.")
+
+    # 3. Loop Through Required Types and Filter/Rank the Pre-filtered Pool
     for rec_type in all_target_types:
-        recs, novelty = get_ml_recommendations(
-            target_features,
-            rec_type,
-            target_gender,
-            target_color,
-            target_id=item_id,
-            top_n=5
-        )
+        loop_start_time = time.time()
+        logger.debug(f"Processing recommendations for type: {rec_type}")
 
-        filtered_recs = [item for item in recs if check_negative_constraints(product, item)][:3]
+        # --- Filtering Specific to this rec_type ---
+        # Attempt 1: Strict Type Match
+        type_mask = base_filtered_pool_df["articleType"] == rec_type
+        candidates_for_type_df = base_filtered_pool_df[type_mask]
+
+        # Attempt 2: Fallback to Group (if strict type yielded nothing)
+        if candidates_for_type_df.empty:
+            target_group = next((group for group, types in ARTICLE_TYPE_GROUPS.items() if rec_type in types), None)
+            if target_group:
+                group_candidate_types = ARTICLE_TYPE_GROUPS.get(target_group, [])
+                # Maybe prioritize items *within* the group but *not* the original target type if target != rec_type?
+                # For simplicity here, just use all types in the group
+                fallback_type_mask = base_filtered_pool_df["articleType"].isin(group_candidate_types)
+                candidates_for_type_df = base_filtered_pool_df[fallback_type_mask]
+                logger.debug(f"Falling back to group '{target_group}' for type '{rec_type}', found {len(candidates_for_type_df)} candidates.")
+            else:
+                 logger.debug(f"No candidates found for strict type '{rec_type}' and no fallback group.")
+                 continue # Skip to next rec_type if no candidates
+
+
+        if candidates_for_type_df.empty:
+             logger.debug(f"No candidates remain for '{rec_type}' after type/group filtering.")
+             continue
+
+        # Apply Color Filter
+        if target_color:
+            color_scores = candidates_for_type_df["baseColour"].apply(
+                lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
+            )
+            # Dynamic threshold: Require at least 3 good matches if possible
+            min_color_threshold = 0.15 if len(candidates_for_type_df[color_scores >= 0.15]) >= 3 else 0.0
+            color_mask = color_scores >= min_color_threshold
+            final_candidates_df_for_type = candidates_for_type_df[color_mask]
+            logger.debug(f"Applied color filter for '{rec_type}', threshold {min_color_threshold}. Candidates: {len(final_candidates_df_for_type)}")
+        else:
+            final_candidates_df_for_type = candidates_for_type_df # No color filter needed
+
+        if final_candidates_df_for_type.empty:
+            logger.debug(f"No candidates remain for '{rec_type}' after color filtering.")
+            continue
+
+        # --- MMR Ranking ---
+        final_candidate_indices = final_candidates_df_for_type['original_index'].tolist()
+        if not final_candidate_indices:
+            continue
+
+        try:
+            # Fetch features only for the final candidates for this type
+            candidate_features_sparse = all_features[final_candidate_indices]
+        except IndexError as e:
+             logger.error(f"IndexError fetching features for {rec_type}: {e}. Indices: {final_candidate_indices[:5]}...")
+             continue # Skip this type if features can't be fetched
+
+        mmr_start = time.time()
+        selected_original_indices = optimized_mmr(
+            target_vector_dense,
+            final_candidate_indices, # Pass original indices
+            candidate_features_sparse,
+            top_n=5, # Request slightly more for negative constraint filtering
+            lambda_param=0.5 # Or your preferred lambda
+        )
+        logger.debug(f"MMR for {rec_type} took {time.time() - mmr_start:.4f}s, selected {len(selected_original_indices)} indices.")
+
+        if not selected_original_indices:
+            continue
+
+        # --- Final Selection & Formatting ---
+        # Fetch full data for selected items
+        results_df = df.loc[selected_original_indices]
+        recs_list = []
+        for _, item_row in results_df.iterrows():
+             item_dict = item_row.to_dict()
+             # Convert ID back to int for the response model
+             item_id_int = int(item_dict['id'])
+             item_dict['id'] = item_id_int
+             # Add image URL
+             item_dict['image_url'] = f"/static/images/{item_id_int}.jpg"
+             recs_list.append(item_dict)
+
+        # Apply negative constraints and limit to top 3
+        filtered_recs = [item for item in recs_list if check_negative_constraints(product, item)][:3]
 
         if filtered_recs:
             recommendations_dict[rec_type] = [Item(**item) for item in filtered_recs]
+            novelty = inverse_popularity_score(filtered_recs)
             metrics_agg['novelty'].append(novelty)
+            logger.debug(f"Successfully generated {len(filtered_recs)} recommendations for {rec_type}.")
+
+        logger.debug(f"Processing type {rec_type} took {time.time() - loop_start_time:.4f}s")
+
 
     avg_metrics = {k: np.mean(v) if v else 0.0 for k, v in metrics_agg.items()}
 
@@ -700,28 +945,347 @@ async def product_page(item_id: str):
         recommendations=OutfitRecommendation(recommendations=recommendations_dict, metrics=avg_metrics)
     )
 
+# main.py (or wherever your FastAPI app is defined)
 
-@app.get("/api/products", response_model=ProductsResponse)
-async def get_random_products(limit: int = 10):
-    """Return a random selection of products."""
-    if ml_model.df is None or ml_model.df.empty:
-        raise HTTPException(status_code=500, detail="Product data not available.")
+# --- [ Imports should be here: FastAPI, BaseModel, logging, np, pd, etc. ] ---
+# --- [ SQLAlchemy setup, MLModel class, other functions like get_item, etc. should be here ] ---
+# --- [ Make sure USAGE_COMPATIBILITY is imported from constants ] ---
+from constants import (
+    ARTICLE_TYPE_GROUPS,
+    ACCESSORY_COMBINATIONS,
+    SEASONAL_ACCESSORIES,
+    COMPATIBLE_TYPES,
+    COLOR_COMPATIBILITY,
+    USAGE_COMPATIBILITY # <-- Ensure this is imported
+)
+import logging
+import time
+import numpy as np
+import pandas as pd
+from typing import List, Dict, Any, Optional
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+# ... other necessary imports
+
+logger = logging.getLogger(__name__)
+
+# Assume ml_model instance, Item, ProductPageResponse, OutfitRecommendation models exist
+# Assume get_item, get_compatible_types, get_accessory_types, color_compatibility,
+# optimized_mmr, check_negative_constraints, inverse_popularity_score functions exist and work as before.
+
+@app.get("/api/product/{item_id}", response_model=ProductPageResponse)
+async def product_page(item_id: str):
+    """Get product details and outfit recommendations (Optimized + Contextual Filters)."""
+    logger.info(f"Received request for product page: {item_id}")
+    request_start_time = time.time() # Renamed outer timer
 
     try:
-        limit = min(limit, len(ml_model.df))
-        limit = max(1, limit)
+        item_id_int = int(item_id)
+        if item_id_int <= 0:
+            raise ValueError("Item ID must be a positive integer.")
+    except ValueError:
+        logger.error(f"Invalid item_id format: {item_id}")
+        raise HTTPException(status_code=400, detail="Invalid item ID format.")
 
-        random_ids = sample(ml_model.df["id"].tolist(), limit)
-        products = [Item(**get_item(pid)) for pid in random_ids if get_item(pid) is not None]
+    # 1. Get Target Item Info
+    get_item_start = time.time()
+    product = get_item(item_id) # Assumes get_item reads from ml_model.df
+    if product is None:
+        logger.error(f"Product {item_id} not found.")
+        raise HTTPException(status_code=404, detail="Item not found")
+    logger.debug(f"get_item took {time.time() - get_item_start:.4f}s")
 
-        if not products:
-             logger.warning("Failed to retrieve details for randomly sampled products.")
-             return ProductsResponse(products=[])
+    target_idx = ml_model.id_to_index.get(item_id)
+    if target_idx is None or ml_model.combined_features is None:
+        logger.error(f"Could not find index or features for item {item_id}")
+        raise HTTPException(status_code=404, detail="Item data or features not found.")
 
-        return ProductsResponse(products=products)
+    target_features = ml_model.combined_features[target_idx]
+    target_vector_dense = target_features.toarray().flatten() # For Annoy/MMR
+    target_gender, target_usage, target_season = product["gender"], product["usage"], product["season"]
+    target_color, target_article_type = product.get("baseColour"), product["articleType"]
+    logger.info(f"Target Item: ID={item_id}, Type={target_article_type}, Gender={target_gender}, Usage={target_usage}, Color={target_color}")
+
+    # 2. Determine All Required Recommendation Types
+    compatible_types_list = get_compatible_types(target_article_type)
+    accessory_types = get_accessory_types(target_usage, target_season)
+    all_target_types = sorted(list(set(compatible_types_list + accessory_types))) # Sort for consistent processing order
+    logger.info(f"Required recommendation types ({len(all_target_types)}): {all_target_types}")
+
+    recommendations_dict = {}
+    metrics_agg = {'novelty': []}
+
+    # --- Optimization: Single Annoy Search ---
+    annoy_index = ml_model.annoy_index
+    all_features = ml_model.combined_features
+    df = ml_model.df
+
+    if annoy_index is None or all_features is None or df is None:
+        logger.error("ML model components not initialized for product page.")
+        raise HTTPException(status_code=500, detail="Server error: Recommender components unavailable.")
+
+    # Fetch a larger pool - adjust multiplier as needed
+    num_items_needed_base = len(all_target_types) * 5 # Base estimate
+    buffer_multiplier = 4 # Multiplier for candidates per needed item (adjust based on filtering strictness)
+    num_potential_neighbors = min(int(ANNOY_SEARCH_K_FACTOR * num_items_needed_base * buffer_multiplier), annoy_index.get_n_items())
+    num_potential_neighbors = max(num_potential_neighbors, 500) # Ensure a minimum reasonable pool size
+    logger.info(f"Fetching {num_potential_neighbors} initial candidates from Annoy.")
+
+    annoy_start = time.time()
+    initial_indices, _ = annoy_index.get_nns_by_vector(
+        target_vector_dense, num_potential_neighbors, search_k=-1, include_distances=True
+    )
+    logger.info(f"Single Annoy search for product {item_id} took {time.time() - annoy_start:.4f}s, found {len(initial_indices)} candidates.")
+
+    if not initial_indices:
+        logger.warning(f"Annoy returned no initial candidates for product {item_id}.")
+        return ProductPageResponse(
+             product=Item(**product),
+             recommendations=OutfitRecommendation(recommendations={}, metrics={'novelty': 0.0})
+         )
+
+    # --- Optimization: Pre-filter the Pool ---
+    # Fetch only necessary columns for the *entire pool* once
+    pool_fetch_start = time.time()
+    filtering_cols = ["id", "articleType", "gender", "baseColour", "usage"] # Added 'usage'
+    cols_to_fetch = [col for col in filtering_cols if col in df.columns]
+    if "id" not in cols_to_fetch: cols_to_fetch.append("id") # Ensure ID is always fetched
+
+    try:
+        # Ensure indices are valid before using .loc
+        valid_initial_indices = [idx for idx in initial_indices if idx < len(df)]
+        if len(valid_initial_indices) != len(initial_indices):
+            logger.warning(f"Filtered out {len(initial_indices) - len(valid_initial_indices)} invalid indices from Annoy results.")
+
+        if not valid_initial_indices:
+             raise ValueError("No valid indices remained after range check.")
+
+        candidate_pool_df = df.iloc[valid_initial_indices][cols_to_fetch].copy() # Use iloc for integer indices
+        candidate_pool_df['original_index'] = valid_initial_indices # Keep track of original index
+        logger.debug(f"Created candidate_pool_df with shape {candidate_pool_df.shape}")
     except Exception as e:
-        logger.error(f"Error fetching random products: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error fetching random products")
+         logger.error(f"Error creating candidate_pool_df: {e}", exc_info=True)
+         raise HTTPException(status_code=500, detail="Error preparing candidate data.")
+    logger.debug(f"Pool data fetch took {time.time() - pool_fetch_start:.4f}s")
+
+
+    # Apply base filters (self-exclusion) to the entire pool ONCE
+    # Gender/Usage filters are better applied per rec_type loop
+    base_filter_start = time.time()
+    base_self_mask = candidate_pool_df["id"] != item_id
+    base_filtered_pool_df = candidate_pool_df[base_self_mask]
+    logger.info(f"Base filtering (self-exclusion) reduced pool size to {len(base_filtered_pool_df)}. Took {time.time() - base_filter_start:.4f}s")
+
+    # 3. Loop Through Required Types and Filter/Rank the Pre-filtered Pool
+    loop_processing_start = time.time()
+    for rec_type in all_target_types:
+        loop_iter_start_time = time.time()
+        logger.debug(f"--- Processing recommendations for type: {rec_type} ---")
+
+        # Filter by Article Type (Attempt 1: Strict)
+        type_filter_start = time.time()
+        type_mask = base_filtered_pool_df["articleType"] == rec_type
+        candidates_for_type_df = base_filtered_pool_df[type_mask]
+        filter_stage = f"Strict Type ({rec_type})"
+
+        # Filter by Article Type (Attempt 2: Fallback Group)
+        if candidates_for_type_df.empty:
+            target_group = next((group for group, types in ARTICLE_TYPE_GROUPS.items() if rec_type in types), None)
+            if target_group:
+                group_candidate_types = ARTICLE_TYPE_GROUPS.get(target_group, [])
+                # Use all types in the group for fallback
+                fallback_type_mask = base_filtered_pool_df["articleType"].isin(group_candidate_types)
+                candidates_for_type_df = base_filtered_pool_df[fallback_type_mask]
+                filter_stage = f"Fallback Group ({target_group})"
+                logger.debug(f"[{rec_type}] Falling back to group '{target_group}', found {len(candidates_for_type_df)} candidates initially.")
+            else:
+                 logger.debug(f"[{rec_type}] No candidates found for strict type and no fallback group.")
+                 continue # Skip to next rec_type
+
+        if candidates_for_type_df.empty:
+             logger.debug(f"[{rec_type}] No candidates found after type/group filtering.")
+             continue
+        logger.debug(f"[{rec_type}] Type filter ({filter_stage}) took {time.time() - type_filter_start:.4f}s. Candidates: {len(candidates_for_type_df)}")
+
+        # --- Contextual Filtering ---
+        contextual_filter_start = time.time()
+
+        # 1. Usage Filter
+        allowed_usages = USAGE_COMPATIBILITY.get(target_usage, USAGE_COMPATIBILITY.get("Unknown", list(df['usage'].unique()))) # Safe fallback
+        usage_mask = candidates_for_type_df["usage"].isin(allowed_usages)
+        candidates_after_usage = candidates_for_type_df[usage_mask]
+
+        if candidates_after_usage.empty:
+            logger.debug(f"[{rec_type}] No candidates remain after usage filter (Target: {target_usage}, Allowed: {allowed_usages}).")
+            continue
+
+        # 2. Gender Filter
+        # Map target gender for broader matching (Boys->Men, Girls->Women)
+        if target_gender in ["Men", "Boys"]: target_gender_group = "Men"
+        elif target_gender in ["Women", "Girls"]: target_gender_group = "Women"
+        else: target_gender_group = "Unisex"
+
+        # Define types that are strongly gendered
+        highly_gendered_types = {
+             "Earrings", "Necklace and Chains", "Pendant", "Ring", "Bracelet", "Bangle", "Jewellery Set",
+             "Bra", "Briefs", "Boxers", "Trunk", "Baby Dolls", "Shapewear", # Added Shapewear
+             "Lipstick", "Lip Gloss", "Nail Polish", "Mascara", "Eyeshadow", # Makeup
+             "Heels", "Skirts", "Dresses", "Lehenga Choli", "Sarees", "Blouse", # Added Blouse
+             "Ties", "Cufflinks", "Suspenders", "Ties and Cufflinks", # Added Ties and Cufflinks
+         }
+
+        if target_gender_group != "Unisex":
+            allowed_genders = [target_gender_group, "Unisex"]
+            if rec_type in highly_gendered_types:
+                 # Strict: Only allow items explicitly matching the target gender group
+                 gender_mask = candidates_after_usage["gender"] == target_gender_group
+                 gender_filter_type = "Strict"
+            else:
+                 # Relaxed: Allow target gender group OR Unisex
+                 gender_mask = candidates_after_usage["gender"].isin(allowed_genders)
+                 gender_filter_type = "Relaxed"
+            logger.debug(f"[{rec_type}] Applying {gender_filter_type} gender filter for target '{target_gender_group}'. Allowed: {allowed_genders if gender_filter_type=='Relaxed' else [target_gender_group]}")
+        else: # Target is Unisex
+             gender_mask = pd.Series([True] * len(candidates_after_usage), index=candidates_after_usage.index) # Allow any gender
+             logger.debug(f"[{rec_type}] Skipping gender filter as target is Unisex.")
+
+        candidates_after_gender = candidates_after_usage[gender_mask]
+
+        if candidates_after_gender.empty:
+            logger.debug(f"[{rec_type}] No candidates remain after gender filter.")
+            continue
+
+        logger.debug(f"[{rec_type}] Contextual filtering took {time.time() - contextual_filter_start:.4f}s. Candidates after Usage/Gender: {len(candidates_after_gender)}")
+
+        # Use the result of contextual filtering for the next steps
+        final_candidates_df_for_type = candidates_after_gender
+
+        # Apply Color Filter
+        color_filter_start = time.time()
+        if target_color:
+            color_scores = final_candidates_df_for_type["baseColour"].apply(
+                lambda x: color_compatibility(target_color, x if pd.notna(x) else "Unknown")
+            )
+            # Dynamic threshold: Require at least 3 good matches if possible
+            min_color_threshold = 0.15 if len(final_candidates_df_for_type[color_scores >= 0.15]) >= 3 else 0.0
+            color_mask = color_scores >= min_color_threshold
+            final_candidates_df_for_type = final_candidates_df_for_type[color_mask]
+            logger.debug(f"[{rec_type}] Applied color filter (Threshold: {min_color_threshold}), took {time.time() - color_filter_start:.4f}s. Candidates: {len(final_candidates_df_for_type)}")
+        else:
+            logger.debug(f"[{rec_type}] No target color, skipping color filter.")
+            # final_candidates_df_for_type remains as is from gender filter
+
+        if final_candidates_df_for_type.empty:
+            logger.debug(f"[{rec_type}] No candidates remain after color filtering.")
+            continue
+
+        # --- MMR Ranking ---
+        final_candidate_indices = final_candidates_df_for_type['original_index'].tolist()
+        if not final_candidate_indices:
+            logger.debug(f"[{rec_type}] No valid original indices for MMR.")
+            continue
+
+        # Fetch features only for the final candidates for this type
+        mmr_prep_start = time.time()
+        try:
+            # Ensure indices are within bounds of the features matrix
+            max_feature_index = all_features.shape[0] - 1
+            valid_mmr_indices = [idx for idx in final_candidate_indices if idx <= max_feature_index]
+            if len(valid_mmr_indices) != len(final_candidate_indices):
+                 logger.warning(f"[{rec_type}] Filtered out {len(final_candidate_indices) - len(valid_mmr_indices)} indices out of bounds for feature matrix.")
+
+            if not valid_mmr_indices:
+                 logger.warning(f"[{rec_type}] No valid indices remaining for MMR feature fetching.")
+                 continue
+
+            candidate_features_sparse = all_features[valid_mmr_indices]
+            # Crucially, pass the valid_mmr_indices to MMR, not final_candidate_indices directly if filtering occurred
+            indices_for_mmr = valid_mmr_indices
+        except IndexError as e:
+             logger.error(f"[{rec_type}] IndexError fetching features for MMR: {e}. Indices: {final_candidate_indices[:5]}...")
+             continue # Skip this type if features can't be fetched
+        except Exception as e:
+             logger.error(f"[{rec_type}] Error fetching features for MMR: {e}", exc_info=True)
+             continue
+
+        logger.debug(f"[{rec_type}] MMR feature prep took {time.time() - mmr_prep_start:.4f}s")
+
+        mmr_exec_start = time.time()
+        selected_original_indices = optimized_mmr(
+            target_vector_dense,
+            indices_for_mmr, # Pass the potentially filtered list of original indices
+            candidate_features_sparse,
+            top_n=5, # Request slightly more for negative constraint filtering
+            lambda_param=0.5
+        )
+        logger.debug(f"[{rec_type}] MMR execution took {time.time() - mmr_exec_start:.4f}s, selected {len(selected_original_indices)} indices.")
+
+        if not selected_original_indices:
+            logger.debug(f"[{rec_type}] MMR returned no items.")
+            continue
+
+        # --- Final Selection & Formatting ---
+        post_mmr_start = time.time()
+        # Fetch full data for selected items using the original indices from MMR
+        try:
+             # Ensure selected indices are valid for the main DataFrame 'df'
+             max_df_index = len(df) - 1
+             valid_selected_indices = [idx for idx in selected_original_indices if idx <= max_df_index]
+             if len(valid_selected_indices) != len(selected_original_indices):
+                  logger.warning(f"[{rec_type}] Filtered out {len(selected_original_indices) - len(valid_selected_indices)} MMR indices out of bounds for main DataFrame.")
+
+             if not valid_selected_indices:
+                  logger.warning(f"[{rec_type}] No valid MMR indices remaining after DataFrame bounds check.")
+                  continue
+
+             # Use .iloc as selected_original_indices are integer positions
+             results_df = df.iloc[valid_selected_indices]
+        except Exception as e:
+             logger.error(f"[{rec_type}] Error fetching final item data after MMR: {e}", exc_info=True)
+             continue
+
+
+        recs_list = []
+        for _, item_row in results_df.iterrows():
+             try:
+                 item_dict = item_row.to_dict()
+                 # Convert ID back to int for the response model
+                 item_id_int = int(item_dict['id'])
+                 item_dict['id'] = item_id_int
+                 # Add image URL
+                 item_dict['image_url'] = f"/static/images/{item_id_int}.jpg"
+                 recs_list.append(item_dict)
+             except Exception as e:
+                 logger.warning(f"[{rec_type}] Error formatting item {item_row.get('id', 'Unknown')}: {e}")
+
+        # Apply negative constraints and limit to top 3
+        final_recs = [item for item in recs_list if check_negative_constraints(product, item)][:3]
+
+        if final_recs:
+            recommendations_dict[rec_type] = [Item(**item) for item in final_recs]
+            novelty = inverse_popularity_score(final_recs)
+            metrics_agg['novelty'].append(novelty)
+            logger.debug(f"[{rec_type}] Successfully generated {len(final_recs)} recommendations. Post-MMR took {time.time() - post_mmr_start:.4f}s")
+        else:
+             logger.debug(f"[{rec_type}] No recommendations passed negative constraints or formatting failed.")
+
+        logger.debug(f"--- Finished processing type {rec_type} in {time.time() - loop_iter_start_time:.4f}s ---")
+
+
+    avg_metrics = {k: np.mean(v) if v else 0.0 for k, v in metrics_agg.items()}
+    logger.info(f"Loop processing finished in {time.time() - loop_processing_start:.4f}s")
+
+    total_time = time.time() - request_start_time
+    logger.info(f"Product page request for {item_id} completed in {total_time:.2f}s. Found recommendations for {len(recommendations_dict)} types.")
+
+    # Final check if recommendations_dict is empty after all processing
+    if not recommendations_dict:
+         logger.warning(f"No recommendations generated for any type for product {item_id}.")
+
+    return ProductPageResponse(
+        product=Item(**product),
+        recommendations=OutfitRecommendation(recommendations=recommendations_dict, metrics=avg_metrics)
+    )
 
 @app.post("/api/recommend-from-image", response_model=OutfitRecommendation)
 async def recommend_from_image(file: UploadFile = File(...)):

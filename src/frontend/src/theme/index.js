@@ -1,3 +1,5 @@
+/* used only by AdminDashboard.jsx */
+
 // src/theme/index.js
 import { createTheme } from '@mui/material/styles';
 

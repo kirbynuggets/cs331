@@ -12,7 +12,7 @@ const CustomThemeProvider = (props) => {
           mode: prefersDarkMode ? "dark" : "light",
         },
         typography: {
-          fontFamily: 'San Francisco, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+          fontFamily: "'Montserrat', 'Poppins', sans-serif", // Updated fonts
         },
       }),
     [prefersDarkMode]
