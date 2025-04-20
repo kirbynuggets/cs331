@@ -18,15 +18,16 @@ import {
   IconButton,
   Snackbar,
   Alert,
-  Tooltip
+  Tooltip,
+  OutlinedInput
 } from "@mui/material";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import AddIcon from "@mui/icons-material/Add";
 import { useNavigate, useLocation } from "react-router-dom";
 
-// Expanded product data
+// Same product data as before
 const initialProductData = [
   {
     id: 1,
@@ -36,6 +37,7 @@ const initialProductData = [
     price: "$19.99",
     image: "https://shop.mango.com/assets/rcs/pics/static/T6/fotos/S/67010458_50.jpg?imwidth=2048&imdensity=1&ts=1701077599405",
   },
+  // ... rest of the products
   {
     id: 2,
     name: "Premium Denim Jeans",
@@ -59,90 +61,26 @@ const initialProductData = [
     stock: 75,
     price: "$79.99",
     image: "https://www.tracerindia.com/cdn/shop/files/1_6c808329-dd9a-4454-9337-57ece421fa0e.jpg?v=1732265882&width=1920",
-  },
-  {
-    id: 5,
-    name: "Smart Watch",
-    category: "Accessories",
-    stock: 40,
-    price: "$199.99",
-    image: "https://m.media-amazon.com/images/I/61ZjlBOp+rL.jpg",
-  },
-  {
-    id: 6,
-    name: "Winter Jacket",
-    category: "Clothing",
-    stock: 22,
-    price: "$99.99",
-    image: "https://images-cdn.ubuy.co.in/65387a8e9a174823154cd84d-tacvasen-men-39-s-winter-jacket-with.jpg",
-  },
-  {
-    id: 7,
-    name: "Fitness Tracker",
-    category: "Accessories",
-    stock: 65,
-    price: "$89.99",
-    image: "https://m.media-amazon.com/images/I/61YwaovfYFL.jpg",
-  },
-  {
-    id: 8,
-    name: "Designer Sunglasses",
-    category: "Accessories",
-    stock: 38,
-    price: "$129.99",
-    image: "https://assets.sunglasshut.com/is/image/LuxotticaRetail/8056597665698__STD__shad__qt.png",
-  },
-  {
-    id: 9,
-    name: "Formal Dress Shirt",
-    category: "Clothing",
-    stock: 86,
-    price: "$45.99",
-    image: "https://dtcralphlauren.scene7.com/is/image/PoloGSI/s7-1505352_alternate10?$plpDeskRFAlt$",
-  },
-  {
-    id: 10,
-    name: "Hiking Boots",
-    category: "Footwear",
-    stock: 42,
-    price: "$119.99",
-    image: "https://www.tracerindia.com/cdn/shop/files/4_893ead97-f5d7-42a0-9101-8a4b0b73d99f.jpg?v=1702727721&width=1946",
-  },
-  {
-    id: 11,
-    name: "Leather Belt",
-    category: "Accessories",
-    stock: 55,
-    price: "$34.99",
-    image: "https://assets.ajio.com/medias/sys_master/root/20231013/2Er2/652933a1ddf7791519397cfd/-1117Wx1400H-469553290-brown-MODEL.jpg",
-  },
-  {
-    id: 12,
-    name: "Summer Sandals",
-    category: "Footwear",
-    stock: 29,
-    price: "$39.99",
-    image: "https://i5.walmartimages.com/asr/3b4e4cfb-1db1-47af-8028-dfc00a27fcc0.1745d3ce8032f65e417f52053c5642af.jpeg?odnHeight=2000&odnWidth=2000&odnBg=FFFFFF",
   }
 ];
 
 // Stock level indicator
 const StockLevel = ({ stock }) => {
-  let color = stock < 40 ? "#f44336" : stock < 70 ? "#ff9800" : "#4caf50";
+  let color = stock < 40 ? "#a05252" : stock < 70 ? "#b78a3f" : "#5e7052";
   let label = stock < 40 ? "Low" : stock < 70 ? "Medium" : "Good";
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", mt: 1 }}>
       <Box
         sx={{
-          height: 10,
-          width: 10,
+          height: 8,
+          width: 8,
           borderRadius: "50%",
           bgcolor: color,
           mr: 1,
         }}
       />
-      <Typography variant="caption">
+      <Typography variant="caption" sx={{ color: "#767676" }}>
         {label} Stock: {stock} units
       </Typography>
     </Box>
@@ -246,24 +184,26 @@ const ProductInventory = ({ showViewMore = false }) => {
     <Box
       sx={{
         bgcolor: "#fff",
-        borderRadius: "8px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-        mb: 3,
-        overflow: "hidden",
+        border: "1px solid #eaeaea",
+        mb: 4,
       }}
     >
       {/* Header Section */}
       <Box
         sx={{
-          padding: "1rem 1.5rem",
+          padding: "1.5rem 2rem",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          borderBottom: "1px solid #f0f0f0",
+          borderBottom: "1px solid #eaeaea",
         }}
       >
-        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-          {isFullPage ? "All Products" : "Product Inventory"}
+        <Typography variant="h6" sx={{ 
+          fontWeight: 400, 
+          letterSpacing: "0.5px",
+          fontSize: "1rem"
+        }}>
+          {isFullPage ? "ALL PRODUCTS" : "PRODUCT INVENTORY"}
         </Typography>
 
         {/* Category Dropdown & View All Products */}
@@ -273,6 +213,7 @@ const ProductInventory = ({ showViewMore = false }) => {
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               displayEmpty
+              input={<OutlinedInput sx={{ borderRadius: 0 }} />}
             >
               <MenuItem value="All">All Categories</MenuItem>
               <MenuItem value="Clothing">Clothing</MenuItem>
@@ -287,16 +228,23 @@ const ProductInventory = ({ showViewMore = false }) => {
               endIcon={<ArrowForwardIcon />}
               onClick={() => navigate("/admin/dashboard/products")}
               size="small"
+              sx={{ color: "#242424", textTransform: "uppercase", letterSpacing: "1px", fontSize: "0.75rem" }}
             >
               View All Products
             </Button>
           ) : isFullPage && (
             <Button
               variant="contained"
-              startIcon={<AddCircleOutlineIcon />}
+              startIcon={<AddIcon />}
               onClick={() => handleOpenDialog("add")}
               size="small"
-              color="primary"
+              sx={{ 
+                bgcolor: "#242424", 
+                "&:hover": { bgcolor: "#000" },
+                letterSpacing: "1px", 
+                fontSize: "0.75rem",
+                textTransform: "uppercase"
+              }}
             >
               Add Product
             </Button>
@@ -305,9 +253,9 @@ const ProductInventory = ({ showViewMore = false }) => {
       </Box>
 
       {/* Product Grid */}
-      <Grid container spacing={2} sx={{ p: 2 }}>
+      <Grid container spacing={0} sx={{ px: 2, py: 3 }}>
         {filteredProducts.map((product) => (
-          <Grid item xs={12} sm={6} md={isFullPage ? 3 : 3} key={product.id}>
+          <Grid item xs={12} sm={6} md={isFullPage ? 3 : 3} key={product.id} sx={{ p: 1 }}>
             <Card
               sx={{
                 display: "flex",
@@ -315,54 +263,66 @@ const ProductInventory = ({ showViewMore = false }) => {
                 height: "100%",
                 bgcolor: "#ffffff",
                 position: "relative",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: "0 6px 12px rgba(0,0,0,0.05)"
+                }
               }}
             >
               {isFullPage && (
-                <Box sx={{ position: "absolute", top: 5, right: 5, display: "flex", gap: 1 }}>
-                  <Tooltip title="Edit">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleOpenDialog("edit", product)}
-                      sx={{ bgcolor: "rgba(255,255,255,0.8)" }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteProduct(product.id)}
-                      sx={{ bgcolor: "rgba(255,255,255,0.8)" }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                <Box sx={{ 
+                  position: "absolute", 
+                  top: 8, 
+                  right: 8, 
+                  display: "flex", 
+                  gap: 1,
+                  opacity: 0.7,
+                  "&:hover": { opacity: 1 }
+                }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleOpenDialog("edit", product)}
+                    sx={{ bgcolor: "rgba(255,255,255,0.8)" }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteProduct(product.id)}
+                    sx={{ bgcolor: "rgba(255,255,255,0.8)" }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
                 </Box>
               )}
               <CardMedia
                 component="img"
                 sx={{
-                  height: 180,
-                  objectFit: "contain",
-                  padding: "10px",
-                  bgcolor: "#ffffff", // Matches the card background
+                  height: 220,
+                  objectFit: "cover",
                 }}
                 image={product.image}
                 alt={product.name}
               />
-              <CardContent sx={{ flexGrow: 1 }}>
+              <CardContent sx={{ flexGrow: 1, p: 2 }}>
                 <Typography
                   gutterBottom
-                  variant="h6"
-                  sx={{ fontSize: "1rem", fontWeight: 600 }}
+                  variant="body1"
+                  sx={{ 
+                    fontWeight: 400, 
+                    letterSpacing: "0.3px",
+                    fontSize: "0.95rem",
+                    mb: 0.5
+                  }}
                 >
                   {product.name}
                 </Typography>
                 <Typography
                   variant="body2"
-                  sx={{ fontWeight: 500, color: "#4caf50" }}
+                  sx={{ fontWeight: 500, mb: 1 }}
                 >
-                  Price: {product.price}
+                  {product.price}
                 </Typography>
                 <StockLevel stock={product.stock} />
               </CardContent>
@@ -372,12 +332,27 @@ const ProductInventory = ({ showViewMore = false }) => {
       </Grid>
 
       {/* Product Dialog for Add/Edit */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {dialogMode === "add" ? "Add New Product" : "Edit Product"}
+      <Dialog 
+        open={openDialog} 
+        onClose={handleCloseDialog} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 0,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.15)"
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          borderBottom: "1px solid #eaeaea", 
+          fontWeight: 400,
+          letterSpacing: "0.5px"
+        }}>
+          {dialogMode === "add" ? "ADD NEW PRODUCT" : "EDIT PRODUCT"}
         </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2}>
+        <DialogContent dividers sx={{ p: 3 }}>
+          <Grid container spacing={3}>
             <Grid item xs={12}>
               <TextField
                 name="name"
@@ -387,6 +362,7 @@ const ProductInventory = ({ showViewMore = false }) => {
                 onChange={handleInputChange}
                 margin="normal"
                 variant="outlined"
+                InputProps={{ sx: { borderRadius: 0 } }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -397,6 +373,7 @@ const ProductInventory = ({ showViewMore = false }) => {
                   onChange={handleInputChange}
                   displayEmpty
                   variant="outlined"
+                  input={<OutlinedInput sx={{ borderRadius: 0 }} />}
                 >
                   <MenuItem value="Clothing">Clothing</MenuItem>
                   <MenuItem value="Accessories">Accessories</MenuItem>
@@ -414,6 +391,7 @@ const ProductInventory = ({ showViewMore = false }) => {
                 onChange={handleInputChange}
                 margin="normal"
                 variant="outlined"
+                InputProps={{ sx: { borderRadius: 0 } }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -426,6 +404,7 @@ const ProductInventory = ({ showViewMore = false }) => {
                 margin="normal"
                 variant="outlined"
                 placeholder="$0.00"
+                InputProps={{ sx: { borderRadius: 0 } }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -437,16 +416,33 @@ const ProductInventory = ({ showViewMore = false }) => {
                 onChange={handleInputChange}
                 margin="normal"
                 variant="outlined"
+                InputProps={{ sx: { borderRadius: 0 } }}
               />
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={handleCloseDialog}
+            sx={{ 
+              color: "#767676", 
+              letterSpacing: "1px", 
+              fontSize: "0.75rem",
+              textTransform: "uppercase"
+            }}
+          >
+            Cancel
+          </Button>
           <Button 
             onClick={handleSaveProduct}
             variant="contained"
-            color="primary"
+            sx={{ 
+              bgcolor: "#242424", 
+              "&:hover": { bgcolor: "#000" },
+              letterSpacing: "1px", 
+              fontSize: "0.75rem",
+              textTransform: "uppercase"
+            }}
           >
             {dialogMode === "add" ? "Add Product" : "Save Changes"}
           </Button>
@@ -463,8 +459,11 @@ const ProductInventory = ({ showViewMore = false }) => {
         <Alert 
           onClose={handleCloseSnackbar} 
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
-          variant="filled"
+          sx={{ 
+            width: '100%',
+            borderRadius: 0,
+            bgcolor: snackbar.severity === 'success' ? '#5e7052' : '#a05252'
+          }}
         >
           {snackbar.message}
         </Alert>

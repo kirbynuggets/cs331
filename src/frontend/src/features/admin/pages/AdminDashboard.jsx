@@ -1,5 +1,4 @@
 // src/features/admin/pages/AdminDashboard.jsx
-
 import React from "react";
 import { CssBaseline, ThemeProvider, Box } from "@mui/material";
 import { Routes, Route } from "react-router-dom";
@@ -17,9 +16,9 @@ function AdminDashboard() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <CategoryProvider>
-        <Box sx={{ display: "flex", bgcolor: "background.default" }}>
+        <Box sx={{ display: "flex", bgcolor: "background.default", minHeight: "100vh" }}>
           <Sidebar />
-          <Box component="main" sx={{ flexGrow: 1, ml: "240px", p: 3 }}>
+          <Box component="main" sx={{ flexGrow: 1, ml: "240px", p: { xs: 2, sm: 3 } }}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route
