@@ -828,38 +828,59 @@ const UserDashboard = ({ username = "Guest" }) => {
 
   // --- Replace the fetchProducts function in useEffect in UserDashboard.jsx ---
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Use the new /api/random-products endpoint 
-        // with the selected category filter if not "all"
-        const endpoint = categoryFilter === "all" 
-          ? "http://localhost:8000/api/random-products?limit=12" 
-          : `http://localhost:8000/api/random-products?limit=12&gender=${categoryFilter}`;
-        
-        const response = await fetch(endpoint);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+  // Replace the useEffect that fetches products in UserDashboard.jsx with this improved version
+useEffect(() => {
+  const fetchProducts = async (retryCount = 0) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Use the /api/random-products endpoint with the selected category filter
+      const endpoint = categoryFilter === "all" 
+        ? "http://localhost:8000/api/random-products?limit=12" 
+        : `http://localhost:8000/api/random-products?limit=12&gender=${categoryFilter}`;
+      
+      console.log(`Fetching products from ${endpoint}`);
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        // If it's a 500 error and we've not retried too many times, try again after a delay
+        if (response.status === 500 && retryCount < 2) {
+          console.log(`Retrying fetch (attempt ${retryCount + 1})...`);
+          setTimeout(() => fetchProducts(retryCount + 1), 1500); // Wait 1.5s before retry
+          return;
         }
-        const data = await response.json();
-        const productsWithFullUrl = (data.products || []).map((p) => ({
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Received ${data.products?.length || 0} products`);
+      
+      if (!data.products || data.products.length === 0) {
+        setAllProducts([]);
+        // If specific gender filter has no results, show specific message
+        if (categoryFilter !== "all") {
+          setError(`No products found in the ${categoryFilter} category. Try a different category.`);
+        } else {
+          setError("No products found. Please try again later.");
+        }
+      } else {
+        const productsWithFullUrl = data.products.map((p) => ({
           ...p,
           image_url: `http://localhost:8000${p.image_url}`,
         }));
+        
         setAllProducts(productsWithFullUrl);
-      } catch (e) {
-        console.error("Failed to fetch products:", e);
-        setError("Failed to load products. Please try again later.");
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (e) {
+      console.error("Failed to fetch products:", e);
+      setError("Failed to load products. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchProducts();
-  }, [categoryFilter]); // Re-fetch when category filter changes
+  fetchProducts();
+}, [categoryFilter]); // Re-fetch when category filter changes
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);

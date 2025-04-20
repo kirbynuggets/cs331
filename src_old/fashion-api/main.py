@@ -1,7 +1,7 @@
 """Main FastAPI application with ML model and database integration using SQLite and SQLAlchemy."""
 
 import os
-from random import sample, shuffle
+from random import random, sample, shuffle, randint
 from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 from io import BytesIO
@@ -1369,7 +1369,6 @@ async def recommend_from_image(file: UploadFile = File(...)):
         logger.error(f"Error processing image recommendation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
-
 @app.post("/api/search", response_model=SearchResult)
 async def search(query: str = Form(...)):
     """Search for images based on a text query using ChromaDB."""
@@ -1429,6 +1428,7 @@ async def search(query: str = Form(...)):
     except Exception as e:
         logger.error(f"Error during search query '{query}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An error occurred during search: {str(e)}")
+
 @app.get("/api/products", response_model=ProductsResponse)
 async def get_products(
     limit: int = Query(12, ge=1, le=100),
@@ -1542,7 +1542,7 @@ async def get_products(
         # response.headers["X-Page-Size"] = str(limit)
         # response.headers["X-Current-Page"] = str(offset // limit + 1)
         # response.headers["X-Total-Pages"] = str((total_count + limit - 1) // limit)
-        
+
         return response
     
     except Exception as e:
@@ -1559,16 +1559,116 @@ async def get_featured_products(
     """
     return await get_products(limit=limit, featured=True, random=True)
 
+# @app.get("/api/random-products", response_model=ProductsResponse)
+# async def get_random_products():
+#     """
+#     Get a random selection of products.
+#     In this implementation, we're using the existing /api/products endpoint with params.
+#     """
+#     logger.info("In get_random_products")
+    
+#     item_ids = []
+#     for i in range(1, 13):
+#         item_ids.append(random.randint(10001, 40000))
+
+#     response= []
+#     for id in item_ids:
+#         response.append(product_page(id))
+
+#     return response
+
 @app.get("/api/random-products", response_model=ProductsResponse)
 async def get_random_products(
     limit: int = Query(10, ge=1, le=100),
     gender: Optional[str] = None
 ):
     """
-    Get a random selection of products.
-    In this implementation, we're using the existing /api/products endpoint with params.
+    Get a random selection of products with improved error handling.
     """
-    return await get_products(limit=limit, gender=gender, random=True)
+    try:
+        logger.info(f"Random products request received. Limit: {limit}, Gender: {gender}")
+        
+        if ml_model.df is None:
+            # Try to initialize data if it's not loaded
+            logger.warning("DataFrame not loaded. Attempting to load data.")
+            try:
+                # Make sure DB is initialized
+                init_db()
+                # Try to load data
+                ml_model.df = load_data()
+                
+                # If we've loaded data but other ML components aren't initialized,
+                # initialize the minimal components needed for this endpoint
+                if ml_model.df is not None and ml_model.df.empty == False:
+                    if ml_model.id_to_index is None or not ml_model.id_to_index:
+                        logger.info("Initializing minimal components for random products endpoint")
+                        ml_model.id_to_index = {str(row["id"]): idx for idx, row in ml_model.df.iterrows()}
+                        ml_model.index_to_id = {idx: str(row["id"]) for idx, row in ml_model.df.iterrows()}
+            except Exception as e:
+                logger.error(f"Failed to load data: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to load product data: {str(e)}")
+            
+            if ml_model.df is None or ml_model.df.empty:
+                # If still empty, return a helpful error
+                logger.error("DataFrame is still None or empty after loading attempt")
+                raise HTTPException(status_code=500, detail="Product data not available")
+        
+        # Start with the full DataFrame
+        filtered_df = ml_model.df.copy()
+        
+        # Apply gender filter if specified
+        if gender:
+            # Include Unisex products with the specified gender
+            filtered_df = filtered_df[
+                (filtered_df["gender"] == gender) | (filtered_df["gender"] == "Unisex")
+            ]
+            logger.info(f"Filtering by gender '{gender}'. Found {len(filtered_df)} matching products.")
+        
+        # If there are no products after filtering, return an empty result 
+        if filtered_df.empty:
+            logger.warning(f"No products found with gender: {gender}")
+            return ProductsResponse(products=[])
+        
+        # Sample random products
+        sample_size = min(limit, len(filtered_df))
+        sampled_df = filtered_df.sample(n=sample_size)
+        
+        # Convert to response format with proper IDs and image URLs
+        products = []
+        for _, row in sampled_df.iterrows():
+            try:
+                product_dict = row.to_dict()
+                
+                # Convert ID to int (but handle string ID case)
+                try:
+                    product_id = int(product_dict['id'])
+                except ValueError:
+                    # If we can't convert to int, keep as is
+                    product_id = product_dict['id']
+                
+                product_dict['id'] = product_id
+                
+                # Add image URL - handle both int and string IDs
+                if isinstance(product_id, int):
+                    product_dict['image_url'] = f"/static/images/{product_id}.jpg"
+                else:
+                    product_dict['image_url'] = f"/static/images/{product_id}.jpg"
+                
+                # Ensure price exists (add default if missing)
+                if 'price' not in product_dict or pd.isna(product_dict['price']):
+                    product_dict['price'] = 29.99
+                
+                products.append(Item(**product_dict))
+            except Exception as e:
+                logger.warning(f"Error processing product row: {e}")
+                continue
+        
+        logger.info(f"Returning {len(products)} random products")
+        return ProductsResponse(products=products)
+    
+    except Exception as e:
+        logger.error(f"Error in get_random_products: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 @app.get("/api/categories", response_model=Dict[str, List[str]])
 async def get_categories():
