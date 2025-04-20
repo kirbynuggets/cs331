@@ -29,14 +29,13 @@ import {
   Fade,
   Collapse,
   Skeleton,
-  // Rating, // Removed as not in API data
   Badge,
   Snackbar,
   Alert,
   Grow,
-  useTheme, // Import useTheme
+  useTheme,
 } from "@mui/material";
-// Removed ThemeProvider, createTheme, responsiveFontSizes, CssBaseline from here
+
 import {
   AccessTime,
   ColorLens,
@@ -52,8 +51,6 @@ import {
   Loop,
   Loyalty,
   NavigateNext,
-  // Star,           // Removed rating icons
-  // StarBorder,     // Removed rating icons
   AddShoppingCart,
   CheckCircle,
   ZoomIn,
@@ -61,9 +58,7 @@ import {
   ArrowForward,
   ArrowBack,
 } from "@mui/icons-material";
-import { alpha } from "@mui/material/styles"; // Keep alpha
-
-// --- Styled Components (Keep as is from previous dark mode fix) ---
+import { alpha } from "@mui/material/styles"; 
 
 const ProductImageContainer = styled(Box)(({ theme }) => ({
   position: "relative",
