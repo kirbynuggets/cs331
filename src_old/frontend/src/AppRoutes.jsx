@@ -127,21 +127,19 @@ export default function AppRoutes() {
       <Route path="/signin" element={<UserSignIn />} />
       <Route path="/signup" element={<UserSignUp />} />
       <Route path="/admin/signin" element={<AdminSignIn />} />
-      
-      {/* Protected Routes */}
-      <Route path="/admin/dashboard/*" element={
-        <AdminProtectedRoute>
-          <AdminDashboard />
-        </AdminProtectedRoute>
-      } />
-      
-      {/* Add other routes similarly */}
 
       {/* Protected Routes */}
       <Route path="/user/dashboard/" element={
         <UserProtectedRoute>
           <UserDashboard />
         </UserProtectedRoute>
+      } />
+      
+      {/* Protected Routes */}
+      <Route path="/admin/dashboard/*" element={
+        <AdminProtectedRoute>
+          <AdminDashboard />
+        </AdminProtectedRoute>
       } />
 
       <Route path="/all-products" element={<ProductCatalog />} />
