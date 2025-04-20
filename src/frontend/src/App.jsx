@@ -6,17 +6,21 @@ import { AuthProvider } from './features/auth';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './AppRoutes'; // We'll create this next
 import CustomThemeProvider from './components/common/CustomThemeProvider';
+import { Provider } from 'react-redux';
+import { store } from './app/store';
 
 function App() {
   return (
-    <CustomThemeProvider >
-      <CssBaseline />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </CustomThemeProvider>
+    <Provider store={store}>
+      <CustomThemeProvider >
+        <CssBaseline />
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </CustomThemeProvider>
+    </Provider>
   );
 }
 

@@ -1064,7 +1064,7 @@ useEffect(() => {
                 <IconButton
                   color="inherit"
                   sx={{ ml: { xs: 0.5, sm: 1 } }}
-                  onClick={() => navigate("/user/cart")}
+                  onClick={() => navigate("/cart")}
                 >
                   {" "}
                   <Badge badgeContent={cartItems} color="error">
@@ -1412,7 +1412,7 @@ useEffect(() => {
               {" "}
               <ListItemText primary="My Profile" />{" "}
             </ListItem>{" "}
-            <ListItem
+            <ListItem 
               button
               onClick={() => {
                 navigate("/user/orders");
