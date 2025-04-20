@@ -65,7 +65,8 @@ import { useNavigate, Link as RouterLink } from "react-router-dom"; // Use Route
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   fetchCart,
-  selectCartItems 
+  selectCartItems,
+  addItemToCart,
 } from "../../cart/cartSlice.js";
 import { 
   selectWishlistItems 
@@ -899,9 +900,8 @@ const UserDashboard = ({ username = "Guest" }) => {
           ); // Let Unisex show in Men/Women filters too
         });
 
-  const addItemToCart = (productId) => {
+  const handleAddToCart = (productId) => {
     // Use the product data to construct a proper cart item
-    console.log(allProducts);
     const product = allProducts.find(p => p.id === productId);
     if (product) {
       dispatch(addItemToCart({
@@ -1344,7 +1344,7 @@ const UserDashboard = ({ username = "Guest" }) => {
                             color="primary"
                             onClick={() => {
                               console.log("ASS"); 
-                              addItemToCart(product.id);
+                              handleAddToCart(product.id);
                             }}
                             sx={{
                               transition: "all 0.2s",
