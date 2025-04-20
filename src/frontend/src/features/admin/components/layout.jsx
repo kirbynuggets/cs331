@@ -5,13 +5,15 @@ import { Outlet } from "react-router-dom";
 
 const Layout = () => {
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box sx={{ display: "flex", bgcolor: "#fafafa" }}>
+      <Sidebar />
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 1, // Reduce padding here if needed
-          ml: -2, // Adjust margin-left if there’s unwanted space
+          p: 2,
+          ml: "240px", // Matches sidebar width
+          minHeight: "100vh",
         }}
       >
         <Outlet />
