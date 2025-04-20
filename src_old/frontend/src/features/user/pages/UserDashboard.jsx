@@ -797,18 +797,55 @@ const UserDashboard = ({ username = "Guest" }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // useEffect(() => {
+  //   const fetchProducts = async () => {
+  //     setIsLoading(true);
+  //     setError(null);
+  //     try {
+  //       const response = await fetch("http://localhost:8000/api/products");
+  //       if (!response.ok) {
+  //         throw new Error(`HTTP error! status: ${response.status}`);
+  //       }
+  //       const data = await response.json();
+  //       const productsWithFullUrl = (data.products || []).map((p) => ({
+  //         // Add default empty array
+  //         ...p,
+  //         image_url: `http://localhost:8000${p.image_url}`,
+  //       }));
+
+  //       setAllProducts(productsWithFullUrl);
+  //       console.log(productsWithFullUrl);
+  //     } catch (e) {
+  //       console.error("Failed to fetch products:", e);
+  //       setError("Failed to load products. Please try again later.");
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   };
+
+  //   fetchProducts();
+  // }, []);
+
+  // --- Replace the fetchProducts function in useEffect in UserDashboard.jsx ---
+
   useEffect(() => {
     const fetchProducts = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch("http://localhost:8000/api/products");
+        // Use the new /api/random-products endpoint 
+        // with the selected category filter if not "all"
+        const endpoint = categoryFilter === "all" 
+          ? "http://localhost:8000/api/random-products?limit=12" 
+          : `http://localhost:8000/api/random-products?limit=12&gender=${categoryFilter}`;
+        
+        const response = await fetch(endpoint);
+        
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         const productsWithFullUrl = (data.products || []).map((p) => ({
-          // Add default empty array
           ...p,
           image_url: `http://localhost:8000${p.image_url}`,
         }));
@@ -822,7 +859,7 @@ const UserDashboard = ({ username = "Guest" }) => {
     };
 
     fetchProducts();
-  }, []);
+  }, [categoryFilter]); // Re-fetch when category filter changes
 
   const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);

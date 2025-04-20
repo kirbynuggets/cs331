@@ -30,6 +30,9 @@ from annoy import AnnoyIndex
 from constants import ARTICLE_TYPE_GROUPS, ACCESSORY_COMBINATIONS, SEASONAL_ACCESSORIES, COMPATIBLE_TYPES, COLOR_COMPATIBILITY
 import logging
 from sklearn.metrics import ndcg_score
+# --- Add these imports if not already present ---
+from fastapi import Query, Path, Body
+from typing import Optional, List, Dict
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,6 +102,21 @@ class ProductsResponse(BaseModel):
 
 class SearchResult(BaseModel):
     images: List[Dict[str, Any]]
+# --- Add these models ---
+class ProductsFilterParams(BaseModel):
+    gender: Optional[str] = None
+    masterCategory: Optional[str] = None
+    subCategory: Optional[str] = None
+    articleType: Optional[str] = None
+    baseColour: Optional[str] = None
+    season: Optional[str] = None
+    usage: Optional[str] = None
+    price_min: Optional[float] = None
+    price_max: Optional[float] = None
+
+class ProductsSortParams(BaseModel):
+    sort_by: Optional[str] = "id"  # id, price, name
+    sort_direction: Optional[str] = "asc"  # asc, desc
 
 # --- Database Module ---
 def load_data() -> pd.DataFrame:
@@ -1411,6 +1429,198 @@ async def search(query: str = Form(...)):
     except Exception as e:
         logger.error(f"Error during search query '{query}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An error occurred during search: {str(e)}")
+@app.get("/api/products", response_model=ProductsResponse)
+async def get_products(
+    limit: int = Query(12, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    gender: Optional[str] = None,
+    masterCategory: Optional[str] = None,
+    subCategory: Optional[str] = None,
+    articleType: Optional[str] = None,
+    baseColour: Optional[str] = None,
+    season: Optional[str] = None,
+    usage: Optional[str] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+    sort_by: str = "id",
+    sort_direction: str = "asc",
+    featured: bool = False,
+    random: bool = False
+):
+    """
+    Get paginated list of products with filtering and sorting options.
+    
+    - limit: Number of products to return
+    - offset: Number of products to skip
+    - gender, masterCategory, etc.: Filter parameters
+    - sort_by: Field to sort by (id, price, productDisplayName)
+    - sort_direction: Sort direction (asc, desc)
+    - featured: If true, return only featured products
+    - random: If true, return random products
+    """
+    try:
+        if ml_model.df is None:
+            logger.error("DataFrame not loaded.")
+            raise HTTPException(status_code=500, detail="Server data not initialized")
+        
+        # Start with full dataframe
+        filtered_df = ml_model.df.copy()
+        
+        # Apply filters
+        if gender:
+            filtered_df = filtered_df[filtered_df["gender"] == gender]
+        if masterCategory:
+            filtered_df = filtered_df[filtered_df["masterCategory"] == masterCategory]
+        if subCategory:
+            filtered_df = filtered_df[filtered_df["subCategory"] == subCategory]
+        if articleType:
+            filtered_df = filtered_df[filtered_df["articleType"] == articleType]
+        if baseColour:
+            filtered_df = filtered_df[filtered_df["baseColour"] == baseColour]
+        if season:
+            filtered_df = filtered_df[filtered_df["season"] == season]
+        if usage:
+            filtered_df = filtered_df[filtered_df["usage"] == usage]
+        if price_min is not None:
+            filtered_df = filtered_df[filtered_df["price"] >= price_min]
+        if price_max is not None:
+            filtered_df = filtered_df[filtered_df["price"] <= price_max]
+        
+        # Mark featured products (for demonstration - here we're marking every 5th product as featured)
+        # In a real app, you'd have a "featured" column in your database
+        filtered_df["featured"] = filtered_df.index % 5 == 0
+        
+        if featured:
+            filtered_df = filtered_df[filtered_df["featured"]]
+        
+        # Apply sorting
+        if sort_by not in ["id", "price", "productDisplayName"]:
+            sort_by = "id"
+        
+        ascending = sort_direction.lower() != "desc"
+        
+        if sort_by == "productDisplayName":
+            # Handle potential NaN values in productDisplayName
+            filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending, na_position='last')
+        else:
+            filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
+        
+        # Handle random selection
+        if random:
+            filtered_df = filtered_df.sample(min(len(filtered_df), limit))
+        
+        # Apply pagination
+        paginated_df = filtered_df.iloc[offset:offset+limit]
+        
+        # Convert to list of dictionaries and format
+        products = []
+        for _, row in paginated_df.iterrows():
+            product_dict = row.to_dict()
+            
+            # Convert ID to int
+            product_id = int(product_dict['id'])
+            product_dict['id'] = product_id
+            
+            # Add image URL
+            product_dict['image_url'] = f"/static/images/{product_id}.jpg"
+            
+            # Ensure price exists
+            if 'price' not in product_dict or pd.isna(product_dict['price']):
+                product_dict['price'] = 29.99  # Default price
+            
+            products.append(Item(**product_dict))
+        
+        # Get total count for pagination
+        total_count = len(filtered_df)
+        
+        logger.info(f"Returned {len(products)} products out of {total_count} filtered (from total {len(ml_model.df)})")
+        
+        response = ProductsResponse(products=products)
+        
+        # Add pagination metadata to response headers (would need to modify ProductsResponse)
+        # response.headers["X-Total-Count"] = str(total_count)
+        # response.headers["X-Page-Size"] = str(limit)
+        # response.headers["X-Current-Page"] = str(offset // limit + 1)
+        # response.headers["X-Total-Pages"] = str((total_count + limit - 1) // limit)
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error in get_products: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error retrieving products: {str(e)}")
+
+@app.get("/api/featured-products", response_model=ProductsResponse)
+async def get_featured_products(
+    limit: int = Query(10, ge=1, le=100)
+):
+    """
+    Get a selection of featured products.
+    In this implementation, we're using the existing /api/products endpoint with params.
+    """
+    return await get_products(limit=limit, featured=True, random=True)
+
+@app.get("/api/random-products", response_model=ProductsResponse)
+async def get_random_products(
+    limit: int = Query(10, ge=1, le=100),
+    gender: Optional[str] = None
+):
+    """
+    Get a random selection of products.
+    In this implementation, we're using the existing /api/products endpoint with params.
+    """
+    return await get_products(limit=limit, gender=gender, random=True)
+
+@app.get("/api/categories", response_model=Dict[str, List[str]])
+async def get_categories():
+    """
+    Get all category, subcategory, and article type values for filtering.
+    """
+    try:
+        if ml_model.df is None:
+            logger.error("DataFrame not loaded.")
+            raise HTTPException(status_code=500, detail="Server data not initialized")
+        
+        categories = {
+            "gender": ml_model.df["gender"].dropna().unique().tolist(),
+            "masterCategory": ml_model.df["masterCategory"].dropna().unique().tolist(),
+            "subCategory": ml_model.df["subCategory"].dropna().unique().tolist(),
+            "articleType": ml_model.df["articleType"].dropna().unique().tolist(),
+            "baseColour": ml_model.df["baseColour"].dropna().unique().tolist(),
+            "season": ml_model.df["season"].dropna().unique().tolist(),
+            "usage": ml_model.df["usage"].dropna().unique().tolist(),
+        }
+        
+        return categories
+    
+    except Exception as e:
+        logger.error(f"Error in get_categories: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error retrieving categories: {str(e)}")
+
+@app.get("/api/price-range")
+async def get_price_range():
+    """
+    Get min and max price for filtering.
+    """
+    try:
+        if ml_model.df is None or "price" not in ml_model.df.columns:
+            logger.error("DataFrame not loaded or price column not available.")
+            raise HTTPException(status_code=500, detail="Server data not initialized or price data not available")
+        
+        # Filter out NaN values
+        price_df = ml_model.df["price"].dropna()
+        
+        if len(price_df) == 0:
+            return {"min_price": 0, "max_price": 1000}
+        
+        min_price = float(price_df.min())
+        max_price = float(price_df.max())
+        
+        return {"min_price": min_price, "max_price": max_price}
+    
+    except Exception as e:
+        logger.error(f"Error in get_price_range: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error retrieving price range: {str(e)}")
+
 
 
 # --- Evaluation Metrics & Endpoints ---
