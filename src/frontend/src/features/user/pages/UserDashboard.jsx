@@ -901,20 +901,22 @@ const UserDashboard = ({ username = "Guest" }) => {
         });
 
   const handleAddToCart = (productId) => {
-    // Use the product data to construct a proper cart item
-    const product = allProducts.find(p => p.id === productId);
-    if (product) {
-      dispatch(addItemToCart({
-        productId,
-        quantity: 1,
-        price: product.price,
-        size: null, // Default size or get from a selection if available
-        color: product.baseColour || null
-      }));
-    }
-    
-    console.log(`Added product ${productId} to cart`);
-  };
+      // Use the product data to construct a proper cart item
+      const product = allProducts.find(p => p.id === productId);
+      if (product) {
+        dispatch(addItemToCart({
+          productId,
+          quantity: 1,
+          price: product.price,
+          size: null, // Default size or get from a selection if available
+          color: product.baseColour || null
+        }));
+        
+        console.log(`Added product ${productId} to cart`);
+      } else {
+        console.error(`Product with ID ${productId} not found`);
+      }
+    };
 
   const addToWishlist = (productId) => {
     dispatch(addToWishlist(productId));
