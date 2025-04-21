@@ -63,9 +63,14 @@ const apiService = {
   getCategories: () => apiClient.get('/categories'),
   getPriceRange: () => apiClient.get('/price-range'),
 
-    // Cart services
+  // Cart services
   getCart: () => apiClient.get('/cart'),
-  addToCart: (productId, quantity, size) => apiClient.post('/cart/add', { productId, quantity, size }),
+  // --- FIX #1: ADD THE addToCart FUNCTION DEFINITION ---
+  addToCart: (productId, quantity, price, size, color) => apiClient.post('/cart/add', { productId, quantity, price, size, color }),
+
+
+  // getCart: () => apiClient.get('/cart'),
+  // addToCart: (productId, quantity, price, size, color) => apiClient.post('/cart/add', { productId, quantity, price, size, color }),
   updateCartItem: (itemId, quantity) => apiClient.put(`/cart/item/${itemId}`, { quantity }),
   removeCartItem: (itemId) => apiClient.delete(`/cart/item/${itemId}`),
   clearCart: () => apiClient.delete('/cart'),
@@ -94,4 +99,4 @@ const apiService = {
   setDefaultAddress: (id) => apiClient.put(`/user/addresses/${id}/default`),
 };
 
-export default apiClient;
+export { apiClient, apiService };   // <-- EXPORT THE apiService OBJECT INSTEAD
