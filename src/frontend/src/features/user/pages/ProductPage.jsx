@@ -59,9 +59,14 @@ import {
   ArrowBack,
 } from "@mui/icons-material";
 import { alpha } from "@mui/material/styles"; 
-import { useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { addItemToCart } from "../../cart/cartSlice.js";
-
+import {
+  addToWishlist,
+  removeFromWishlist,
+  selectIsInWishlist,
+  fetchWishlist // Import fetchWishlist if needed here
+} from '../../wishlist/wishlistSlice.js'; // <-- Adjust path as needed
 
 const ProductImageContainer = styled(Box)(({ theme }) => ({
   position: "relative",
@@ -372,7 +377,6 @@ const ProductPage = () => {
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [isFavorite, setIsFavorite] = useState(false);
   // const [selectedColor, setSelectedColor] = useState(null); // State for color if needed later
   const [zoomed, setZoomed] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -381,6 +385,17 @@ const ProductPage = () => {
 
   const theme = useTheme();
   const navigate = useNavigate(); // Import and use navigate for recommendations
+  const dispatch = useDispatch();
+
+  // --- ADD THESE LINES ---
+  // Get wishlist status from Redux
+  // Check product?.id exists before calling selector
+  const isCurrentlyInWishlist = useSelector((state) =>
+    product?.id ? selectIsInWishlist(state, product.id) : false
+  );
+  const wishlistStatus = useSelector(state => state.wishlist.status); // To disable button while loading
+  // ----------------------
+
 
   // Available sizes (assuming static for now)
   const sizes = ["XS", "S", "M", "L", "XL"]; // Adjust if API provides sizes
@@ -460,6 +475,14 @@ const ProductPage = () => {
     fetchProductDetails();
   }, [id]); // Re-fetch when ID changes
 
+  useEffect(() => {
+    // Only fetch if status is 'idle' to prevent refetching unnecessarily
+    if (wishlistStatus === 'idle') {
+      console.log("Fetching initial wishlist...");
+      dispatch(fetchWishlist());
+    }
+  }, [dispatch, wishlistStatus]); // Depend on dispatch and status
+
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
   };
@@ -475,16 +498,47 @@ const ProductPage = () => {
     }
   };
 
+  // const handleToggleFavorite = () => {
+  //   setIsFavorite(!isFavorite);
+  //   setSnackbarMessage(
+  //     isFavorite ? "Removed from Wishlist" : "Added to Wishlist",
+  //   );
+  //   setShowSnackbar(true);
+  // };  
+
   const handleToggleFavorite = () => {
-    setIsFavorite(!isFavorite);
-    setSnackbarMessage(
-      isFavorite ? "Removed from Wishlist" : "Added to Wishlist",
-    );
-    setShowSnackbar(true);
+    // Prevent action if product ID is missing or wishlist is updating
+    if (!product?.id || wishlistStatus === 'loading') {
+      console.warn("Cannot toggle favorite: Missing product ID or wishlist is loading.");
+      return;
+    }
+
+    const itemToAdd = {
+      productId: product.id,
+      quantity: quantity,
+      price: product.price, // Make sure product.price has a value here
+      size: selectedSize,
+      color: product.baseColour || null
+    };
+  
+    // Decide action based on current Redux state
+    if (isCurrentlyInWishlist) {
+      // Dispatch REMOVE action
+      console.log(`Dispatching removeFromWishlist for productId: ${product.id}`);
+      dispatch(removeFromWishlist(itemToAdd));
+      setSnackbarMessage("Removed from Wishlist"); // Keep snackbar logic
+    } else {
+      // Dispatch ADD action
+      console.log(`Dispatching addToWishlist for productId: ${product.id}`);
+      dispatch(addToWishlist(itemToAdd));
+      setSnackbarMessage("Added to Wishlist"); // Keep snackbar logic
+    }
+  
+    // Show snackbar immediately for feedback
+    setShowSnackbar(true); // Keep snackbar logic
   };
 
-  const dispatch = useDispatch();
-  
+
   const handleAddToCart = () => {
     if (!selectedSize) {
       setSnackbarMessage("Please select a size");
@@ -771,19 +825,25 @@ const ProductPage = () => {
                     </Typography>
                   </Box>
                   <Box>
-                    <Tooltip
-                      title={
-                        isFavorite ? "Remove from Wishlist" : "Add to Wishlist"
-                      }
+                  <Tooltip
+                  // Update tooltip based on Redux state
+                  title={isCurrentlyInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+                >
+                  {/* Wrap in span to ensure tooltip shows even when button is disabled */}
+                  <span>
+                    <FavoriteButton
+                      aria-label="add to wishlist"
+                      onClick={handleToggleFavorite}
+                      // Use Redux state for appearance
+                      isFavorite={isCurrentlyInWishlist}
+                      // Disable button while wishlist status is loading
+                      disabled={wishlistStatus === 'loading'}
                     >
-                      <FavoriteButton
-                        aria-label="add to wishlist"
-                        onClick={handleToggleFavorite}
-                        isFavorite={isFavorite}
-                      >
-                        {isFavorite ? <Favorite /> : <FavoriteBorder />}
-                      </FavoriteButton>
-                    </Tooltip>
+                      {/* Update icon based on Redux state */}
+                      {isCurrentlyInWishlist ? <Favorite /> : <FavoriteBorder />}
+                    </FavoriteButton>
+                  </span>
+                </Tooltip>
                     <Tooltip title="Share">
                       {" "}
                       <IconButton aria-label="share" color="inherit">

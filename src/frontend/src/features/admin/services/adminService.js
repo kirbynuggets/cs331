@@ -21,8 +21,5 @@ const adminService = {
     const response = await apiClient.delete(`/admin/products/${id}`);
     return response.data;
   },
-  
-  // Add other admin-related API calls
 };
-
 export default adminService;

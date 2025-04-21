@@ -311,8 +311,23 @@ const CartPage = () => {
                         </Box>
                         
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>₹{(item.price * item.quantity).toFixed(2)}</Typography>
-                          <Typography variant="caption" color="text.secondary">₹{item.price.toFixed(2)} each</Typography>
+                          {/* <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>₹{(item.price * item.quantity).toFixed(2)}</Typography>
+                          <Typography variant="caption" color="text.secondary">₹{item.price.toFixed(2)} each</Typography> */}
+                          <Typography variant="caption" color="text.secondary">
+                        {/* Check if item.price is a valid number */}
+                        {typeof item.price === 'number'
+                            ? `₹${item.price.toFixed(2)} each`
+                            : 'Price N/A' // Fallback text
+                        }
+                      </Typography>
+                      {/* Total price for this item (price * quantity) */}
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                        {/* Check if both price and quantity are valid numbers */}
+                        {typeof item.price === 'number' && typeof item.quantity === 'number'
+                            ? `₹${(item.price * item.quantity).toFixed(2)}`
+                            : 'Total N/A' // Fallback text
+                        }
+                      </Typography>
                           
                           <Box sx={{ display: 'flex', mt: 'auto' }}>
                             <IconButton 
