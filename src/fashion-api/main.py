@@ -33,6 +33,7 @@ from sklearn.metrics import ndcg_score
 # --- Add these imports if not already present ---
 from fastapi import Query, Path, Body
 from typing import Optional, List, Dict
+from sqladmin import Admin, ModelView
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-class ClothingItemDB(Base):
+class ClothingItem(Base):
     """SQLAlchemy model for clothing_items table."""
     __tablename__ = "clothing_items"
 
@@ -125,7 +126,7 @@ def load_data() -> pd.DataFrame:
     start_time = time.time()
     db: Session = SessionLocal()
     try:
-        items = db.query(ClothingItemDB).all()
+        items = db.query(ClothingItem).all()
         df = pd.DataFrame([item.__dict__ for item in items])
         df["id"] = df["id"].astype(str) # Keep IDs as strings internally
     finally:
@@ -718,6 +719,12 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+admin = Admin(app, engine)
+class ProductAdmin(ModelView, model=ClothingItem):
+    column_list = [ClothingItem.id, ClothingItem.gender, ClothingItem.masterCategory, ClothingItem.subCategory, ClothingItem.articleType, ClothingItem.baseColour, ClothingItem.season, ClothingItem.usage, ClothingItem.productDisplayName, ClothingItem.price]
+
+admin.add_view(ProductAdmin)
 
 async def startup_event():
     """Initialize application resources on startup."""
@@ -1449,7 +1456,7 @@ async def get_products(
 ):
     """
     Get paginated list of products with filtering and sorting options.
-    
+
     - limit: Number of products to return
     - offset: Number of products to skip
     - gender, masterCategory, etc.: Filter parameters
@@ -1462,10 +1469,10 @@ async def get_products(
         if ml_model.df is None:
             logger.error("DataFrame not loaded.")
             raise HTTPException(status_code=500, detail="Server data not initialized")
-        
+
         # Start with full dataframe
         filtered_df = ml_model.df.copy()
-        
+
         # Apply filters
         if gender:
             filtered_df = filtered_df[filtered_df["gender"] == gender]
@@ -1485,58 +1492,58 @@ async def get_products(
             filtered_df = filtered_df[filtered_df["price"] >= price_min]
         if price_max is not None:
             filtered_df = filtered_df[filtered_df["price"] <= price_max]
-        
+
         # Mark featured products (for demonstration - here we're marking every 5th product as featured)
         # In a real app, you'd have a "featured" column in your database
         filtered_df["featured"] = filtered_df.index % 5 == 0
-        
+
         if featured:
             filtered_df = filtered_df[filtered_df["featured"]]
-        
+
         # Apply sorting
         if sort_by not in ["id", "price", "productDisplayName"]:
             sort_by = "id"
-        
+
         ascending = sort_direction.lower() != "desc"
-        
+
         if sort_by == "productDisplayName":
             # Handle potential NaN values in productDisplayName
             filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending, na_position='last')
         else:
             filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
-        
+
         # Handle random selection
         if random:
             filtered_df = filtered_df.sample(min(len(filtered_df), limit))
-        
+
         # Apply pagination
         paginated_df = filtered_df.iloc[offset:offset+limit]
-        
+
         # Convert to list of dictionaries and format
         products = []
         for _, row in paginated_df.iterrows():
             product_dict = row.to_dict()
-            
+
             # Convert ID to int
             product_id = int(product_dict['id'])
             product_dict['id'] = product_id
-            
+
             # Add image URL
             product_dict['image_url'] = f"/static/images/{product_id}.jpg"
-            
+
             # Ensure price exists
             if 'price' not in product_dict or pd.isna(product_dict['price']):
                 product_dict['price'] = 29.99  # Default price
-            
+
             products.append(Item(**product_dict))
-        
+
         # Get total count for pagination
         total_count = len(filtered_df)
-        
+
         logger.info(f"Returned {len(products)} products out of {total_count} filtered (from total {len(ml_model.df)})")
-        
+
         response = ProductsResponse(products=products)
-        
+
         # Add pagination metadata to response headers (would need to modify ProductsResponse)
         # response.headers["X-Total-Count"] = str(total_count)
         # response.headers["X-Page-Size"] = str(limit)
@@ -1544,7 +1551,7 @@ async def get_products(
         # response.headers["X-Total-Pages"] = str((total_count + limit - 1) // limit)
 
         return response
-    
+
     except Exception as e:
         logger.error(f"Error in get_products: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error retrieving products: {str(e)}")
@@ -1566,7 +1573,7 @@ async def get_featured_products(
 #     In this implementation, we're using the existing /api/products endpoint with params.
 #     """
 #     logger.info("In get_random_products")
-    
+
 #     item_ids = []
 #     for i in range(1, 13):
 #         item_ids.append(random.randint(10001, 40000))
@@ -1587,7 +1594,7 @@ async def get_random_products(
     """
     try:
         logger.info(f"Random products request received. Limit: {limit}, Gender: {gender}")
-        
+
         if ml_model.df is None:
             # Try to initialize data if it's not loaded
             logger.warning("DataFrame not loaded. Attempting to load data.")
@@ -1596,7 +1603,7 @@ async def get_random_products(
                 init_db()
                 # Try to load data
                 ml_model.df = load_data()
-                
+
                 # If we've loaded data but other ML components aren't initialized,
                 # initialize the minimal components needed for this endpoint
                 if ml_model.df is not None and ml_model.df.empty == False:
@@ -1607,15 +1614,15 @@ async def get_random_products(
             except Exception as e:
                 logger.error(f"Failed to load data: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to load product data: {str(e)}")
-            
+
             if ml_model.df is None or ml_model.df.empty:
                 # If still empty, return a helpful error
                 logger.error("DataFrame is still None or empty after loading attempt")
                 raise HTTPException(status_code=500, detail="Product data not available")
-        
+
         # Start with the full DataFrame
         filtered_df = ml_model.df.copy()
-        
+
         # Apply gender filter if specified
         if gender:
             # Include Unisex products with the specified gender
@@ -1623,49 +1630,49 @@ async def get_random_products(
                 (filtered_df["gender"] == gender) | (filtered_df["gender"] == "Unisex")
             ]
             logger.info(f"Filtering by gender '{gender}'. Found {len(filtered_df)} matching products.")
-        
-        # If there are no products after filtering, return an empty result 
+
+        # If there are no products after filtering, return an empty result
         if filtered_df.empty:
             logger.warning(f"No products found with gender: {gender}")
             return ProductsResponse(products=[])
-        
+
         # Sample random products
         sample_size = min(limit, len(filtered_df))
         sampled_df = filtered_df.sample(n=sample_size)
-        
+
         # Convert to response format with proper IDs and image URLs
         products = []
         for _, row in sampled_df.iterrows():
             try:
                 product_dict = row.to_dict()
-                
+
                 # Convert ID to int (but handle string ID case)
                 try:
                     product_id = int(product_dict['id'])
                 except ValueError:
                     # If we can't convert to int, keep as is
                     product_id = product_dict['id']
-                
+
                 product_dict['id'] = product_id
-                
+
                 # Add image URL - handle both int and string IDs
                 if isinstance(product_id, int):
                     product_dict['image_url'] = f"/static/images/{product_id}.jpg"
                 else:
                     product_dict['image_url'] = f"/static/images/{product_id}.jpg"
-                
+
                 # Ensure price exists (add default if missing)
                 if 'price' not in product_dict or pd.isna(product_dict['price']):
                     product_dict['price'] = 29.99
-                
+
                 products.append(Item(**product_dict))
             except Exception as e:
                 logger.warning(f"Error processing product row: {e}")
                 continue
-        
+
         logger.info(f"Returning {len(products)} random products")
         return ProductsResponse(products=products)
-    
+
     except Exception as e:
         logger.error(f"Error in get_random_products: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
@@ -1679,7 +1686,7 @@ async def get_categories():
         if ml_model.df is None:
             logger.error("DataFrame not loaded.")
             raise HTTPException(status_code=500, detail="Server data not initialized")
-        
+
         categories = {
             "gender": ml_model.df["gender"].dropna().unique().tolist(),
             "masterCategory": ml_model.df["masterCategory"].dropna().unique().tolist(),
@@ -1689,9 +1696,9 @@ async def get_categories():
             "season": ml_model.df["season"].dropna().unique().tolist(),
             "usage": ml_model.df["usage"].dropna().unique().tolist(),
         }
-        
+
         return categories
-    
+
     except Exception as e:
         logger.error(f"Error in get_categories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error retrieving categories: {str(e)}")
@@ -1705,18 +1712,18 @@ async def get_price_range():
         if ml_model.df is None or "price" not in ml_model.df.columns:
             logger.error("DataFrame not loaded or price column not available.")
             raise HTTPException(status_code=500, detail="Server data not initialized or price data not available")
-        
+
         # Filter out NaN values
         price_df = ml_model.df["price"].dropna()
-        
+
         if len(price_df) == 0:
             return {"min_price": 0, "max_price": 1000}
-        
+
         min_price = float(price_df.min())
         max_price = float(price_df.max())
-        
+
         return {"min_price": min_price, "max_price": max_price}
-    
+
     except Exception as e:
         logger.error(f"Error in get_price_range: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error retrieving price range: {str(e)}")

@@ -236,7 +236,7 @@ const CartPage = () => {
           </Typography>
           <Button
             component={RouterLink}
-            to="/products"
+            to="/all-products"
             variant="contained"
             color="primary"
             size="large"

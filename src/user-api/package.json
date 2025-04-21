@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.7.0",
+    "connect-sqlite3": "^0.9.15",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
     "debug": "~2.6.9",
@@ -17,6 +18,7 @@
     "email-validator": "^2.0.4",
     "express": "^4.21.2",
     "express-async-errors": "^3.1.1",
+    "express-session": "^1.18.1",
     "express-validator": "^7.2.1",
     "http-errors": "~1.6.3",
     "http-status": "^2.1.0",
