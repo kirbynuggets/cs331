@@ -1,5 +1,5 @@
 // src/features/admin/services/adminService.js
-import apiClient from '../../../services/apiClient';
+import { apiClient } from '../../../services/apiClient';
 
 const adminService = {
   getProducts: async () => {

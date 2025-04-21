@@ -194,12 +194,21 @@ const OrderItem = sequelize.define("OrderItem", {
 
 // Cart model
 const Cart = sequelize.define("Cart", {
+    // Add the productId field
+  productId: {
+    type: DataTypes.INTEGER, // Make sure this matches the type of your product IDs
+    allowNull: false
+  },
   quantity: {
     type: DataTypes.INTEGER,
     defaultValue: 1,
     validate: {
       min: 1
     }
+  },
+  price: {
+    type: DataTypes.FLOAT,
+    allowNull: true
   },
   size: {
     type: DataTypes.STRING,
@@ -837,16 +846,17 @@ app.post("/api/signup", async (req, res) => {
 app.get("/api/cart", authenticateUser, async (req, res) => {
   const cartItems = await Cart.findAll({
     where: { UserId: req.user.id },
-    attributes: ['id', 'quantity', 'size', 'color', 'productId']
+    attributes: ['id', 'quantity', 'size', 'color', 'productId', 'price']
   });
   
+  console.log("in BACKEND bitch")
   // Here you would normally fetch product details from your product database
   // Since your products might be in a separate database, we'll return the cart with productIds
   res.json({ items: cartItems });
 });
 
 app.post("/api/cart/add", authenticateUser, async (req, res) => {
-  const { productId, quantity, size, color } = req.body;
+  const { productId, quantity, price, size, color } = req.body;
   
   if (!productId || !quantity) {
     return res.status(400).json({ error: "Product ID and quantity are required" });
@@ -871,6 +881,7 @@ app.post("/api/cart/add", authenticateUser, async (req, res) => {
       UserId: req.user.id,
       productId,
       quantity,
+      price: price || null,
       size: size || null,
       color: color || null
     });
@@ -879,7 +890,7 @@ app.post("/api/cart/add", authenticateUser, async (req, res) => {
   // Return updated cart
   const updatedCart = await Cart.findAll({
     where: { UserId: req.user.id },
-    attributes: ['id', 'quantity', 'size', 'color', 'productId']
+    attributes: ['id', 'quantity', 'size', 'color', 'productId', 'price']
   });
   
   res.json({ items: updatedCart });
@@ -909,7 +920,7 @@ app.put("/api/cart/item/:id", authenticateUser, async (req, res) => {
   
   const updatedCart = await Cart.findAll({
     where: { UserId: req.user.id },
-    attributes: ['id', 'quantity', 'size', 'color', 'productId']
+    attributes: ['id', 'quantity', 'size', 'color', 'productId', 'price']
   });
   
   res.json({ items: updatedCart });

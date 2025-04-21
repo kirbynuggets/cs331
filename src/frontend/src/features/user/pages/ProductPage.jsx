@@ -59,6 +59,9 @@ import {
   ArrowBack,
 } from "@mui/icons-material";
 import { alpha } from "@mui/material/styles"; 
+import { useDispatch } from "react-redux";
+import { addItemToCart } from "../../cart/cartSlice.js";
+
 
 const ProductImageContainer = styled(Box)(({ theme }) => ({
   position: "relative",
@@ -480,12 +483,28 @@ const ProductPage = () => {
     setShowSnackbar(true);
   };
 
+  const dispatch = useDispatch();
+  
   const handleAddToCart = () => {
     if (!selectedSize) {
       setSnackbarMessage("Please select a size");
       setShowSnackbar(true);
       return;
     }
+    
+    const itemToAdd = {
+      productId: product.id,
+      quantity: quantity,
+      price: product.price, // Make sure product.price has a value here
+      size: selectedSize,
+      color: product.baseColour || null
+    };
+
+
+    console.log("Dispatching addItemToCart with:", itemToAdd); // <-- ADD THIS LOG
+    dispatch(addItemToCart(itemToAdd));
+
+    
     console.log(
       `Added ${quantity} x ${product.productDisplayName} (Size: ${selectedSize}) to cart`,
     );
