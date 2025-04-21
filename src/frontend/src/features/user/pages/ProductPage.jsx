@@ -58,15 +58,15 @@ import {
   ArrowForward,
   ArrowBack,
 } from "@mui/icons-material";
-import { alpha } from "@mui/material/styles"; 
+import { alpha } from "@mui/material/styles";
 import { useSelector, useDispatch } from "react-redux";
 import { addItemToCart } from "../../cart/cartSlice.js";
 import {
   addToWishlist,
   removeFromWishlist,
   selectIsInWishlist,
-  fetchWishlist // Import fetchWishlist if needed here
-} from '../../wishlist/wishlistSlice.js'; // <-- Adjust path as needed
+  fetchWishlist, // Import fetchWishlist if needed here
+} from "../../wishlist/wishlistSlice.js"; // <-- Adjust path as needed
 
 const ProductImageContainer = styled(Box)(({ theme }) => ({
   position: "relative",
@@ -391,11 +391,10 @@ const ProductPage = () => {
   // Get wishlist status from Redux
   // Check product?.id exists before calling selector
   const isCurrentlyInWishlist = useSelector((state) =>
-    product?.id ? selectIsInWishlist(state, product.id) : false
+    product?.id ? selectIsInWishlist(state, product.id) : false,
   );
-  const wishlistStatus = useSelector(state => state.wishlist.status); // To disable button while loading
+  const wishlistStatus = useSelector((state) => state.wishlist.status); // To disable button while loading
   // ----------------------
-
 
   // Available sizes (assuming static for now)
   const sizes = ["XS", "S", "M", "L", "XL"]; // Adjust if API provides sizes
@@ -477,7 +476,7 @@ const ProductPage = () => {
 
   useEffect(() => {
     // Only fetch if status is 'idle' to prevent refetching unnecessarily
-    if (wishlistStatus === 'idle') {
+    if (wishlistStatus === "idle") {
       console.log("Fetching initial wishlist...");
       dispatch(fetchWishlist());
     }
@@ -498,46 +497,35 @@ const ProductPage = () => {
     }
   };
 
-  // const handleToggleFavorite = () => {
-  //   setIsFavorite(!isFavorite);
-  //   setSnackbarMessage(
-  //     isFavorite ? "Removed from Wishlist" : "Added to Wishlist",
-  //   );
-  //   setShowSnackbar(true);
-  // };  
-
   const handleToggleFavorite = () => {
     // Prevent action if product ID is missing or wishlist is updating
-    if (!product?.id || wishlistStatus === 'loading') {
-      console.warn("Cannot toggle favorite: Missing product ID or wishlist is loading.");
+    if (!product?.id || wishlistStatus === "loading") {
+      console.warn(
+        "Cannot toggle favorite: Missing product ID or wishlist is loading.",
+      );
       return;
     }
 
-    const itemToAdd = {
-      productId: product.id,
-      quantity: quantity,
-      price: product.price, // Make sure product.price has a value here
-      size: selectedSize,
-      color: product.baseColour || null
-    };
-  
+    const idToAdd = product.id;
+
     // Decide action based on current Redux state
     if (isCurrentlyInWishlist) {
       // Dispatch REMOVE action
-      console.log(`Dispatching removeFromWishlist for productId: ${product.id}`);
-      dispatch(removeFromWishlist(itemToAdd));
+      console.log(
+        `Dispatching removeFromWishlist for productId: ${product.id}`,
+      );
+      dispatch(removeFromWishlist(idToAdd));
       setSnackbarMessage("Removed from Wishlist"); // Keep snackbar logic
     } else {
       // Dispatch ADD action
       console.log(`Dispatching addToWishlist for productId: ${product.id}`);
-      dispatch(addToWishlist(itemToAdd));
+      dispatch(addToWishlist(idToAdd));
       setSnackbarMessage("Added to Wishlist"); // Keep snackbar logic
     }
-  
+
     // Show snackbar immediately for feedback
     setShowSnackbar(true); // Keep snackbar logic
   };
-
 
   const handleAddToCart = () => {
     if (!selectedSize) {
@@ -545,20 +533,18 @@ const ProductPage = () => {
       setShowSnackbar(true);
       return;
     }
-    
+
     const itemToAdd = {
       productId: product.id,
       quantity: quantity,
       price: product.price, // Make sure product.price has a value here
       size: selectedSize,
-      color: product.baseColour || null
+      color: product.baseColour || null,
     };
-
 
     console.log("Dispatching addItemToCart with:", itemToAdd); // <-- ADD THIS LOG
     dispatch(addItemToCart(itemToAdd));
 
-    
     console.log(
       `Added ${quantity} x ${product.productDisplayName} (Size: ${selectedSize}) to cart`,
     );
@@ -825,25 +811,33 @@ const ProductPage = () => {
                     </Typography>
                   </Box>
                   <Box>
-                  <Tooltip
-                  // Update tooltip based on Redux state
-                  title={isCurrentlyInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
-                >
-                  {/* Wrap in span to ensure tooltip shows even when button is disabled */}
-                  <span>
-                    <FavoriteButton
-                      aria-label="add to wishlist"
-                      onClick={handleToggleFavorite}
-                      // Use Redux state for appearance
-                      isFavorite={isCurrentlyInWishlist}
-                      // Disable button while wishlist status is loading
-                      disabled={wishlistStatus === 'loading'}
+                    <Tooltip
+                      // Update tooltip based on Redux state
+                      title={
+                        isCurrentlyInWishlist
+                          ? "Remove from Wishlist"
+                          : "Add to Wishlist"
+                      }
                     >
-                      {/* Update icon based on Redux state */}
-                      {isCurrentlyInWishlist ? <Favorite /> : <FavoriteBorder />}
-                    </FavoriteButton>
-                  </span>
-                </Tooltip>
+                      {/* Wrap in span to ensure tooltip shows even when button is disabled */}
+                      <span>
+                        <FavoriteButton
+                          aria-label="add to wishlist"
+                          onClick={handleToggleFavorite}
+                          // Use Redux state for appearance
+                          isFavorite={isCurrentlyInWishlist}
+                          // Disable button while wishlist status is loading
+                          disabled={wishlistStatus === "loading"}
+                        >
+                          {/* Update icon based on Redux state */}
+                          {isCurrentlyInWishlist ? (
+                            <Favorite />
+                          ) : (
+                            <FavoriteBorder />
+                          )}
+                        </FavoriteButton>
+                      </span>
+                    </Tooltip>
                     <Tooltip title="Share">
                       {" "}
                       <IconButton aria-label="share" color="inherit">
