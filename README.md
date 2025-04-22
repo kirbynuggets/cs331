@@ -133,7 +133,7 @@ yarn dev
 ## 🌟 Key Features Showcase
 
 ### Visual Search
-![Visual Search](screenshots/recommend_from_image.jpeg)
+<img src="screenshots/recommend_from_image.jpeg" alt="Visual Search" width="600">
 *Upload an image to find similar products in our catalog*
 
 ### AI-Powered Recommendations
