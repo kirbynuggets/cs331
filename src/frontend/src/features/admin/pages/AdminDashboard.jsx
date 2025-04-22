@@ -1,4 +1,5 @@
 // src/features/admin/pages/AdminDashboard.jsx
+
 import React from "react";
 import { CssBaseline, ThemeProvider, Box } from "@mui/material";
 import { Routes, Route } from "react-router-dom";
@@ -8,7 +9,6 @@ import theme from "../../../theme";  // Use centralized theme
 import Sidebar from "../components/sidebar";
 import Dashboard from "../components/dashboard";
 import ProductInventory from "../components/products";
-import AnalyticsOverview from "../components/analytics";
 import Settings from "../components/settings";
 
 function AdminDashboard() {
@@ -16,19 +16,16 @@ function AdminDashboard() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <CategoryProvider>
-        <Box sx={{ display: "flex", bgcolor: "background.default", minHeight: "100vh" }}>
+        <Box sx={{ display: "flex", bgcolor: "background.default" }}>
           <Sidebar />
-          <Box component="main" sx={{ flexGrow: 1, ml: "240px", p: { xs: 2, sm: 3 } }}>
+          <Box component="main" sx={{ flexGrow: 1, ml: "240px", p: 3 }}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route
                 path="/products"
                 element={<ProductInventory showViewMore={false} />}
               />
-              <Route
-                path="/analytics"
-                element={<AnalyticsOverview showViewMore={false} />}
-              />
+              {/* Analytics route removed */}
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Box>

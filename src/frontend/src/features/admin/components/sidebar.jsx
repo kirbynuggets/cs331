@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Typography, Divider, List, ListItem, ListItemButton, ListItemText } from "@mui/material";
+import { Box, Typography, Divider } from "@mui/material";
 import { NavLink, useLocation } from "react-router-dom";
 
 const Sidebar = () => {
@@ -8,7 +8,7 @@ const Sidebar = () => {
   const menuItems = [
     { label: "Dashboard", path: "/admin/dashboard" },
     { label: "Products", path: "/admin/dashboard/products" },
-    { label: "Analytics", path: "/admin/dashboard/analytics" },
+    // Analytics menu item removed
     { label: "Settings", path: "/admin/dashboard/settings" },
   ];
 
@@ -18,53 +18,37 @@ const Sidebar = () => {
         width: 240,
         height: "100vh",
         flexShrink: 0,
-        borderRight: "1px solid #eaeaea",
+        borderRight: "1px solid #e0e0e0",
         bgcolor: "#fff",
+        padding: "2rem 0",
         position: "fixed",
         top: 0,
         left: 0,
         overflowY: "auto",
       }}
     >
-      <Box sx={{ p: 4, pt: 5, pb: 3 }}>
-        <Typography variant="h6" sx={{ 
-          fontWeight: 400, 
-          letterSpacing: "1px", 
-          fontSize: "1rem" 
-        }}>
-          ADMIN DASHBOARD
-        </Typography>
-      </Box>
-      <Divider sx={{ borderColor: "#eaeaea" }} />
-      <List component="nav" sx={{ pt: 2 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, padding: "0 1.5rem", marginBottom: "1rem" }}>
+        ADMIN DASHBOARD
+      </Typography>
+      <Divider />
+      <Box component="nav" sx={{ paddingTop: "1rem" }}>
         {menuItems.map((item) => (
-          <ListItem key={item.path} disablePadding>
-            <ListItemButton
-              component={NavLink}
-              to={item.path}
-              sx={{
-                py: 1.5,
-                px: 4,
-                color: location.pathname === item.path ? "#000" : "#767676",
-                borderLeft: location.pathname === item.path ? '3px solid #000' : '3px solid transparent',
-                '&:hover': {
-                  bgcolor: 'transparent',
-                  color: '#000',
-                },
-              }}
-            >
-              <ListItemText 
-                primary={item.label} 
-                primaryTypographyProps={{ 
-                  fontSize: "0.85rem", 
-                  letterSpacing: "0.5px",
-                  fontWeight: location.pathname === item.path ? 500 : 400
-                }} 
-              />
-            </ListItemButton>
-          </ListItem>
+          <NavLink
+            key={item.path}
+            to={item.path}
+            style={{
+              textDecoration: "none",
+              display: "block",
+              padding: "0.75rem 1.5rem",
+              fontWeight: 500,
+              backgroundColor: location.pathname === item.path ? "#f5f5f5" : "transparent",
+              color: location.pathname === item.path ? "#26A69A" : "#000",
+            }}
+          >
+            {item.label}
+          </NavLink>
         ))}
-      </List>
+      </Box>
     </Box>
   );
 };
