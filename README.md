@@ -94,19 +94,23 @@ npm run dev
 yarn dev
 ```
 
-4. Open your browser and navigate to `http://localhost:5173` --> -->
+4. Open your browser and navigate to `http://localhost:5173` -->
 
 ## 📸 Screenshots
 
 ### User Interface
 
 #### Home Page
-![Home Page](screenshots/placeholder-homepage.png)
+![Home Page](screenshots/home-page.png)
 *The welcoming homepage showcasing featured products and categories*
 
-#### Product Catalog
-![Product Catalog](screenshots/placeholder-catalog.png)
-*Browse through our extensive product catalog with advanced filtering*
+#### Fashion AI Assistant
+![Fashion AI Assistant](screenshots/assistant.png)
+*Chat with Fashion AI Assistant to find products in our catalog that go well with your choices*
+
+#### Visual Search
+![Visual Search](screenshots/visual-search.png)
+*Upload an image to find similar products in our catalog*
 
 <!-- #### Product Detail
 ![Product Detail](screenshots/placeholder-product.png)
@@ -129,12 +133,16 @@ yarn dev
 ## 🌟 Key Features Showcase
 
 ### Visual Search
-![Visual Search](screenshots/placeholder-visual-search.png)
+![Visual Search](screenshots/recommend_from_image.jpeg)
 *Upload an image to find similar products in our catalog*
 
 ### AI-Powered Recommendations
-![AI Recommendations](screenshots/placeholder-ai-recs.png)
+![AI Recommendations](screenshots/product_recommend.jpeg)
 *Get personalized product recommendations based on your preferences*
+
+#### Fashion AI Assistant
+![Fashion AI Assistant](screenshots/assistant-in-action.png)
+*Chat with Fashion AI Assistant to find products in our catalog that go well with your choices*
 
 ## 🔐 Authentication
 
