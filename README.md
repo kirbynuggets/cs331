@@ -1,6 +1,6 @@
 # LUXE - Premium Fashion E-Commerce Platform
 
-![LUXE E-Commerce Platform](https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png)
+<!-- ![LUXE E-Commerce Platform](https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png) -->
 
 ## 🌟 Overview
 
