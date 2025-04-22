@@ -32,7 +32,6 @@ LUXE is a modern, feature-rich e-commerce platform designed for premium fashion 
 - **Redux Toolkit** - State management solution
 - **React Router** - Routing and navigation
 - **Material UI** - Component library for modern, responsive design
-- **Recharts** - Data visualization for analytics
 
 ### Backend (API Integration)
 - RESTful API integration with comprehensive endpoints for:
