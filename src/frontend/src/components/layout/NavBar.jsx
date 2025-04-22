@@ -186,7 +186,7 @@ const NavBar = ({ username = "Guest" }) => {
                 mr: { xs: 1, md: 4 },
                 cursor: "pointer",
               }}
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/user/dashboard")}
             >
               <ShoppingBag
                 sx={{
