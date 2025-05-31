@@ -1,5 +1,5 @@
 // src/features/admin/services/adminService.js
-import apiClient from '../../../services/apiClient';
+import { apiClient } from '../../../services/apiClient';
 
 const adminService = {
   getProducts: async () => {
@@ -21,8 +21,5 @@ const adminService = {
     const response = await apiClient.delete(`/admin/products/${id}`);
     return response.data;
   },
-  
-  // Add other admin-related API calls
 };
-
 export default adminService;

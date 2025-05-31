@@ -1,5 +1,5 @@
 // src/features/auth/services/authService.js
-import apiClient from '../../../services/apiClient.js';
+import { apiClient } from '../../../services/apiClient.js';
 
 const authService = {
   loginUser: async (credentials) => {

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import apiService from '../../services/apiClient';
+import { apiService } from '../../services/apiClient.js';
 import { toast } from 'react-toastify';
 
 // Async thunks
@@ -17,11 +17,21 @@ export const fetchCart = createAsyncThunk(
 
 export const addItemToCart = createAsyncThunk(
   'cart/addItem',
-  async ({ productId, quantity, size }, { rejectWithValue }) => {
+  async ({ productId, quantity, price, size, color }, { rejectWithValue }) => {
     try {
-      const response = await apiService.addToCart(productId, quantity, size);
+      console.log('Thunk: Attempting apiService.addToCart call...'); // Added log
+      const response = await apiService.addToCart(productId, quantity, price, size, color);
+      console.log('Thunk: apiService.addToCart call succeeded. Response data:', response.data);
       return response.data;
     } catch (error) {
+
+      console.error('addItemToCart CATCH block triggered!');
+      console.error('>>> Full Error Object:', error);
+      console.error('>>> error.response:', error.response);
+      console.error('>>> error.response?.data:', error.response?.data);
+      console.error('>>> error.message:', error.message);
+      console.error('>>> error.config:', error.config); // Shows the request config 
+
       return rejectWithValue(error.response?.data || { message: 'Failed to add item to cart' });
     }
   }
@@ -128,21 +138,62 @@ const cartSlice = createSlice({
       })
       
       // Add item to cart
+    //   .addCase(addItemToCart.pending, (state) => {
+    //     state.status = 'loading';
+    //   })
+    //   // .addCase(addItemToCart.fulfilled, (state, action) => {
+    //   //   state.status = 'succeeded';
+    //   //   state.items = action.payload.items;
+    //   //   const { totalQuantity, totalPrice } = calculateCartTotals(state.items);
+    //   //   state.totalQuantity = totalQuantity;
+    //   //   state.totalPrice = totalPrice;
+    //   //   toast.success('Item added to cart');
+    //   // })
+    //       .addCase(addItemToCart.fulfilled, (state, action) => {
+    //   console.log('addItemToCart fulfilled. Payload:', action.payload); // Log payload from backend
+    //   state.status = 'succeeded';
+    //   state.items = action.payload.items; // Ensure payload.items is the array
+    //   const { totalQuantity, totalPrice } = calculateCartTotals(state.items);
+    //   console.log('Calculated totals:', { totalQuantity, totalPrice }); // Log calculated totals
+    //   state.totalQuantity = totalQuantity;
+    //   state.totalPrice = totalPrice;
+    //   toast.success('Item added to cart');
+    //   console.log('New cart state:', JSON.parse(JSON.stringify(state))); // Log the entire new state
+    // })
+    //   .addCase(addItemToCart.rejected, (state, action) => {
+    //     state.status = 'failed';
+    //     state.error = action.payload?.message || 'Failed to add item to cart';
+    //     toast.error(state.error);
+    //   })
+
+      // Add item to cart
       .addCase(addItemToCart.pending, (state) => {
+        console.log("addItemToCart pending..."); // Optional: Log pending state
         state.status = 'loading';
       })
       .addCase(addItemToCart.fulfilled, (state, action) => {
+        // This part isn't running, which is the problem symptom
+        console.log('addItemToCart fulfilled. Payload:', action.payload);
         state.status = 'succeeded';
         state.items = action.payload.items;
         const { totalQuantity, totalPrice } = calculateCartTotals(state.items);
+        console.log('Calculated totals:', { totalQuantity, totalPrice });
         state.totalQuantity = totalQuantity;
         state.totalPrice = totalPrice;
         toast.success('Item added to cart');
+        console.log('New cart state:', JSON.parse(JSON.stringify(state)));
       })
       .addCase(addItemToCart.rejected, (state, action) => {
+        // --- ADD DETAILED LOGGING HERE ---
+        console.error('addItemToCart REJECTED!');
+        console.error('Action Payload (from rejectWithValue):', action.payload);
+        console.error('Action Error (if any):', action.error);
+        // --- END OF ADDED LOGGING ---
+
         state.status = 'failed';
-        state.error = action.payload?.message || 'Failed to add item to cart';
-        toast.error(state.error);
+        // Prioritize payload message, then action error message
+        state.error = action.payload?.message || action.error?.message || 'Unknown error adding item';
+        toast.error(`Failed to add item: ${state.error}`); // Show more specific error
       })
       
       // Update cart item

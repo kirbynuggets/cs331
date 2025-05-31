@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import apiService from '../../services/apiClient';
+import { apiService } from '../../services/apiClient';
 import { toast } from 'react-toastify';
 import { clearCart } from '../cart/cartSlice';
 

@@ -191,6 +191,7 @@ const StickyFilters = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
   borderRadius: theme.shape.borderRadius,
   border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+  height: "fit-content", // Added to prevent stretching
 }));
 
 // Product Quick View dialog component
@@ -1032,9 +1033,16 @@ const ProductCatalog = () => {
             <Typography color="text.primary">Products</Typography>
           </Breadcrumbs>
 
-          <Grid container spacing={4}>
+          {/* Main page layout */}
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 4 }}>
             {/* Sidebar with filters - visible on desktop */}
-            <Grid item xs={12} md={3} lg={3} sx={{ display: { xs: "none", md: "block" } }}>
+            <Box 
+              sx={{ 
+                width: { md: '280px', lg: '320px' }, 
+                flexShrink: 0, 
+                display: { xs: "none", md: "block" }
+              }}
+            >
               <FilterPanel 
                 genderFilter={genderFilter}
                 categoryFilter={categoryFilter}
@@ -1051,10 +1059,10 @@ const ProductCatalog = () => {
                 availableFilters={availableFilters}
                 activeFilters={activeFilters}
               />
-            </Grid>
+            </Box>
 
             {/* Main content area */}
-            <Grid item xs={12} md={9} lg={9}>
+            <Box sx={{ flexGrow: 1, width: { xs: '100%', md: 'calc(100% - 300px)', lg: 'calc(100% - 340px)' } }}>
               {/* Search & filter bar */}
               <Box
                 sx={{
@@ -1181,7 +1189,7 @@ const ProductCatalog = () => {
                 // Skeleton loading state
                 <Grid container spacing={3}>
                   {Array.from(new Array(productsPerPage)).map((_, index) => (
-                    <Grid item xs={12} sm={6} md={4} lg={4} key={index}>
+                    <Grid item xs={12} sm={6} md={viewMode === "list" ? 12 : 6} lg={viewMode === "list" ? 12 : 4} key={index}>
                       <ProductSkeleton />
                     </Grid>
                   ))}
@@ -1245,7 +1253,7 @@ const ProductCatalog = () => {
                         item 
                         xs={12} 
                         sm={viewMode === "list" ? 12 : 6} 
-                        md={viewMode === "list" ? 12 : 4} 
+                        md={viewMode === "list" ? 12 : 6} 
                         lg={viewMode === "list" ? 12 : 4} 
                         key={product.id}
                       >
@@ -1525,8 +1533,8 @@ const ProductCatalog = () => {
                   )}
                 </>
               )}
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </Container>
 
         {/* Mobile Filters Drawer */}
