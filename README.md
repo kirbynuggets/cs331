@@ -2,8 +2,6 @@
 
 **AI-Driven Outfit Recommendations with Advanced Search Capabilities**
 
-*Department of Computer Science and Engineering, Indian Institute of Information Technology Guwahati*
-
 ## Abstract
 
 This project delivers a full-stack fashion e-commerce platform that implements advanced outfit recommendations and sophisticated search. Our solution employs architecture with a **Retrieval-Augmented Generation (RAG)** framework that employs state-of-the-art machine learning, including **OpenAI CLIP** for multimodal understanding and **Maximal Marginal Relevance (MMR)** for diverse recommendations.
